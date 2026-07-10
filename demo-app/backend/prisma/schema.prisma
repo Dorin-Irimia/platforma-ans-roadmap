@@ -1,5 +1,5 @@
-// Schema inițială — se extinde per sprint cu entitățile fiecărui scenariu
-// (User/Role/AuditLog pentru IAM, Form/Request/WorkflowStep pentru DMS, etc.)
+// Schema IAM (Scenariul 4) — se extinde per sprint cu entitățile
+// fiecărui scenariu (Form/Request/WorkflowStep pentru DMS, etc.)
 
 datasource db {
   provider = "postgresql"
@@ -10,18 +10,68 @@ generator client {
   provider = "prisma-client-js"
 }
 
+enum Role {
+  SUPER_ADMIN
+  ADMIN_INSTITUTIE
+  MODERATOR
+  EVALUATOR
+  AUTOR
+  CO_AUTOR
+  UTILIZATOR_STANDARD
+}
+
 model User {
+  id                String   @id @default(uuid())
+  email             String   @unique
+  passwordHash      String
+  name              String?
+  role              Role     @default(UTILIZATOR_STANDARD)
+  isActive          Boolean  @default(true)
+  twoFactorEnabled  Boolean  @default(false)
+  twoFactorSecret   String?
+  failedLoginCount  Int      @default(0)
+  lockedUntil       DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  groups            GroupMembership[]
+  auditLogs         AuditLog[]
+}
+
+model Group {
   id        String   @id @default(uuid())
-  email     String   @unique
-  password  String
-  role      String   @default("USER")
+  name      String   @unique
   createdAt DateTime @default(now())
+
+  members   GroupMembership[]
+}
+
+model GroupMembership {
+  id      String @id @default(uuid())
+  userId  String
+  groupId String
+  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  group   Group  @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, groupId])
 }
 
 model AuditLog {
   id        String   @id @default(uuid())
   userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
   action    String
+  resource  String?
   metadata  Json?
+  ipAddress String?
+  success   Boolean  @default(true)
   createdAt DateTime @default(now())
+}
+
+model Secret {
+  id             String   @id @default(uuid())
+  key            String   @unique
+  encryptedValue String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 }
