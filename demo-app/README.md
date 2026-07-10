@@ -28,3 +28,11 @@ docker compose up --build
 ## Stare curentă
 
 Acesta este scaffold-ul inițial de structură (foldere + configurare de bază). Implementarea efectivă a fiecărui scenariu se face sprint cu sprint, conform planului din `Roadmap_Demo_Scenarii.html`.
+
+## Design system
+
+Paleta de culori, tipografia (Bricolage Grotesque pentru titluri, Plus Jakarta Sans pentru text) și componentele vizuale (carduri rotunjite, pill-uri de status, buton cu gradient portocaliu) sunt preluate din repo-ul `Aplicatie-mobile-stocare-informatii-autovehicule` (Dorin-Irimia), pentru consistență vizuală între aplicații.
+
+- Tokens: [frontend/src/theme.ts](./frontend/src/theme.ts)
+- Stiluri globale: [frontend/src/index.css](./frontend/src/index.css)
+- Componente reutilizabile: [frontend/src/components/ui.tsx](./frontend/src/components/ui.tsx)

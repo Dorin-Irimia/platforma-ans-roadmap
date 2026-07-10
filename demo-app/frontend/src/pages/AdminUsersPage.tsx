@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { fetchUsers, setUserActive } from "../features/iam/api";
+import { PageShell, Card, SectionHeader, Pill, RolePill, Button } from "../components/ui";
+import { T } from "../theme";
 
 interface UserRow {
   id: string;
@@ -25,35 +27,47 @@ export default function AdminUsersPage() {
   }
 
   return (
-    <div style={{ padding: 24, fontFamily: "sans-serif" }}>
-      <h2>Administrare utilizatori</h2>
-      {error && <p style={{ color: "red" }}>{error}</p>}
-      <table border={1} cellPadding={8} style={{ borderCollapse: "collapse", width: "100%" }}>
-        <thead>
-          <tr>
-            <th>Email</th>
-            <th>Nume</th>
-            <th>Rol</th>
-            <th>2FA</th>
-            <th>Activ</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          {users.map((u) => (
-            <tr key={u.id}>
-              <td>{u.email}</td>
-              <td>{u.name}</td>
-              <td>{u.role}</td>
-              <td>{u.twoFactorEnabled ? "Da" : "Nu"}</td>
-              <td>{u.isActive ? "Activ" : "Blocat"}</td>
-              <td>
-                <button onClick={() => toggleActive(u)}>{u.isActive ? "Blochează" : "Deblochează"}</button>
-              </td>
+    <PageShell title="Administrare utilizatori" subtitle="Scenariul 4 — Securitate / IAM">
+      <Card padded={false}>
+        <div style={{ padding: "20px 20px 0" }}>
+          <SectionHeader title={`${users.length} conturi`} />
+        </div>
+        {error && <p style={{ color: T.danger, padding: "0 20px" }}>{error}</p>}
+        <table>
+          <thead>
+            <tr>
+              <th style={{ paddingLeft: 20 }}>Email</th>
+              <th>Nume</th>
+              <th>Rol</th>
+              <th>2FA</th>
+              <th>Status</th>
+              <th style={{ paddingRight: 20 }}></th>
             </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+          </thead>
+          <tbody>
+            {users.map((u) => (
+              <tr key={u.id}>
+                <td style={{ paddingLeft: 20, fontWeight: 600 }}>{u.email}</td>
+                <td>{u.name || "—"}</td>
+                <td><RolePill role={u.role} /></td>
+                <td>{u.twoFactorEnabled ? <Pill color={T.success} bg={T.successTint}>Activ</Pill> : <Pill>Inactiv</Pill>}</td>
+                <td>
+                  {u.isActive ? (
+                    <Pill color={T.success} bg={T.successTint}>Activ</Pill>
+                  ) : (
+                    <Pill color={T.danger} bg={T.dangerTint}>Blocat</Pill>
+                  )}
+                </td>
+                <td style={{ paddingRight: 20 }}>
+                  <Button variant={u.isActive ? "danger" : "primary"} style={{ padding: "6px 12px", fontSize: 12 }} onClick={() => toggleActive(u)}>
+                    {u.isActive ? "Blochează" : "Deblochează"}
+                  </Button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </Card>
+    </PageShell>
   );
 }
