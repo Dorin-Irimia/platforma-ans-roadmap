@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+<meta charset="UTF-8">
+<title>Roadmap PM – Platformă Digitală ANS</title>
+<style>
+  :root{
+    --navy:#0f2942; --blue:#2563eb; --teal:#0d9488; --amber:#d97706; --red:#dc2626;
+    --purple:#7c3aed; --green:#16a34a; --orange:#ea580c; --gray:#64748b; --bg:#f4f6f9;
+    --card:#ffffff; --border:#e2e8f0; --text:#1e293b; --muted:#64748b;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:'Segoe UI',Arial,sans-serif;background:var(--bg);color:var(--text);line-height:1.5;}
+  header.top{background:linear-gradient(135deg,var(--navy),#1d4e80);color:#fff;padding:34px 40px;}
+  header.top h1{margin:0 0 6px;font-size:26px;}
+  header.top p{margin:0;color:#cfe0f0;font-size:14px;}
+  nav.tabs{position:sticky;top:0;background:#fff;border-bottom:2px solid var(--border);display:flex;flex-wrap:wrap;z-index:50;box-shadow:0 2px 6px rgba(0,0,0,.05);}
+  nav.tabs a{padding:12px 16px;font-size:13px;font-weight:600;color:var(--navy);text-decoration:none;white-space:nowrap;border-bottom:3px solid transparent;}
+  nav.tabs a:hover{background:#eef3fa;border-bottom-color:var(--blue);}
+  main{max-width:1280px;margin:0 auto;padding:30px 40px 80px;}
+  section{margin-bottom:56px;scroll-margin-top:52px;}
+  h2{font-size:21px;color:var(--navy);border-left:5px solid var(--blue);padding-left:12px;margin-bottom:18px;}
+  h3{font-size:16px;color:var(--navy);margin:22px 0 10px;}
+  .lead{font-size:14px;color:var(--muted);max-width:900px;}
+  .grid-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px;margin-top:16px;}
+  .stat{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center;}
+  .stat b{display:block;font-size:22px;color:var(--blue);}
+  .stat span{font-size:12px;color:var(--muted);}
+  table{width:100%;border-collapse:collapse;background:var(--card);font-size:13px;border:1px solid var(--border);border-radius:8px;overflow:hidden;}
+  th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--border);vertical-align:top;}
+  th{background:#eaf1fb;color:var(--navy);font-size:12px;text-transform:uppercase;letter-spacing:.03em;}
+  tr:last-child td{border-bottom:none;}
+  .badge{display:inline-block;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700;color:#fff;}
+  .b-blue{background:var(--blue);} .b-teal{background:var(--teal);} .b-amber{background:var(--amber);}
+  .b-red{background:var(--red);} .b-purple{background:var(--purple);} .b-green{background:var(--green);}
+  .b-orange{background:var(--orange);} .b-gray{background:var(--gray);}
+
+  /* Gantt */
+  .gantt-wrap{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:20px;overflow-x:auto;}
+  .gantt-scale{display:grid;grid-template-columns:220px repeat(24,1fr);font-size:10px;color:var(--muted);margin-bottom:4px;min-width:1100px;}
+  .gantt-scale div{text-align:center;padding:2px 0;border-left:1px solid #eef2f7;}
+  .gantt-row{display:grid;grid-template-columns:220px repeat(24,1fr);align-items:center;min-width:1100px;height:34px;}
+  .gantt-row .label{font-size:12.5px;font-weight:600;color:var(--navy);padding-right:10px;}
+  .gantt-track{grid-column:2/26;position:relative;height:22px;background:repeating-linear-gradient(90deg,#f8fafc,#f8fafc calc(100%/24 - 1px),#eef2f7 calc(100%/24));border-radius:4px;}
+  .bar{position:absolute;top:0;height:22px;border-radius:5px;color:#fff;font-size:10.5px;display:flex;align-items:center;padding-left:6px;white-space:nowrap;overflow:hidden;box-shadow:0 1px 2px rgba(0,0,0,.2);}
+  .diamond{position:absolute;top:-3px;width:12px;height:12px;background:#111;transform:rotate(45deg);}
+  .legend{display:flex;flex-wrap:wrap;gap:10px 18px;margin-top:16px;font-size:12px;}
+  .legend span{display:inline-flex;align-items:center;gap:6px;}
+  .legend i{width:12px;height:12px;border-radius:3px;display:inline-block;}
+  .note{font-size:12px;color:var(--muted);margin-top:10px;}
+
+  /* Architecture diagram */
+  .arch{display:flex;flex-direction:column;gap:6px;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:20px;}
+  .layer{border-radius:8px;padding:12px 16px;color:#fff;}
+  .layer h4{margin:0 0 6px;font-size:13px;}
+  .layer .items{display:flex;flex-wrap:wrap;gap:6px;}
+  .layer .item{background:rgba(255,255,255,.18);padding:4px 9px;border-radius:6px;font-size:11.5px;}
+  .l1{background:#334155;} .l2{background:var(--blue);} .l3{background:#1d4e80;}
+  .l4{background:var(--teal);} .l5{background:var(--red);} .l6{background:#0f2942;}
+  .arrow-down{text-align:center;color:var(--muted);font-size:16px;margin:-2px 0;}
+
+  /* Module cards */
+  .modules{display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:16px;}
+  .mcard{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px 18px;border-top:4px solid var(--blue);}
+  .mcard h3{margin-top:0;font-size:15px;display:flex;align-items:center;gap:8px;}
+  .mcard .idx{background:var(--navy);color:#fff;border-radius:50%;width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;font-size:11px;}
+  .mcard p.desc{font-size:12.5px;color:var(--muted);margin:6px 0 10px;}
+  .mcard ul{margin:0;padding-left:18px;font-size:12.5px;}
+  .mcard ul li{margin-bottom:4px;}
+  .tag{display:inline-block;background:#eef3fa;color:var(--navy);border-radius:5px;padding:1px 7px;font-size:10.5px;margin:0 4px 4px 0;}
+
+  .accordion-title{font-weight:700;color:var(--navy);font-size:13px;margin:14px 0 6px;}
+  .two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+  @media (max-width:800px){.two-col{grid-template-columns:1fr;}}
+  .risk-high{color:var(--red);font-weight:700;}
+  .risk-med{color:var(--amber);font-weight:700;}
+  .risk-low{color:var(--green);font-weight:700;}
+  footer{text-align:center;font-size:11.5px;color:var(--muted);padding:20px;border-top:1px solid var(--border);}
+  code{background:#eef3fa;padding:1px 5px;border-radius:4px;font-size:11.5px;}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <h1>Roadmap de Proiect – Platformă Digitală Integrată ANS</h1>
+  <p>Structură de management de proiect (PM), arhitectură software, module funcționale, integrări și plan de task-uri — pe baza Caietului de Sarcini (326 pagini) · Autoritate Contractantă: Agenția Națională pentru Sport · Durată implementare: 24 luni + 36 luni garanție</p>
+</header>
+
+<nav class="tabs">
+  <a href="#sumar">Sumar Executiv</a>
+  <a href="#roadmap">Roadmap &amp; Faze</a>
+  <a href="#arhitectura">Arhitectură Software</a>
+  <a href="#module">Module &amp; Task-uri</a>
+  <a href="#infra">Infrastructură Cloud</a>
+  <a href="#securitate">Securitate</a>
+  <a href="#integrari">Integrări Externe</a>
+  <a href="#echipa">Echipa de Proiect</a>
+  <a href="#livrabile">Livrabile &amp; Plăți</a>
+  <a href="#riscuri">Riscuri &amp; KPI</a>
+  <a href="#guvernanta">Guvernanță &amp; Metodologie</a>
+</nav>
+
+<main>
+
+<!-- ================= SUMAR ================= -->
+<section id="sumar">
+  <h2>1. Sumar Executiv</h2>
+  <p class="lead">Proiect de digitalizare completă a serviciilor Agenției Naționale pentru Sport (ANS): 13 module funcționale interconectate (portal public, registratură/DMS, registre sportive, arhivă, BI, chatbot AI propriu, aplicații mobile), pe infrastructură Cloud Privat Guvernamental (Azure Stack Hub), cu componente COTS licențiate perpetuu și dezvoltări custom.</p>
+  <div class="grid-cards">
+    <div class="stat"><b>24 luni</b><span>Durată implementare</span></div>
+    <div class="stat"><b>36 luni</b><span>Garanție post-recepție</span></div>
+    <div class="stat"><b>13</b><span>Module funcționale</span></div>
+    <div class="stat"><b>9 + 8</b><span>Experți cheie / arhivare</span></div>
+    <div class="stat"><b>130</b><span>Persoane instruite</span></div>
+    <div class="stat"><b>2,5 mil.</b><span>Pagini de arhivat digital</span></div>
+    <div class="stat"><b>&gt;100.000</b><span>Sportivi în registru</span></div>
+    <div class="stat"><b>36 luni</b><span>Licențe securitate/subscripții</span></div>
+  </div>
+  <h3>Obiective cheie</h3>
+  <table>
+    <tr><th>Obiectiv general</th><td>Digitalizarea end-to-end (nivel de sofisticare 4/5 – tranzacție completă online) a serviciilor publice ANS pentru federații, cluburi, sportivi, antrenori, baze sportive și cetățeni.</td></tr>
+    <tr><th>Model de livrare</th><td>Soluții <b>COTS</b> (licențe perpetue, utilizatori nelimitați) pentru Portal, DMS/Registratură, LMS (CNFPA), Arhivă, Securitate + <b>dezvoltare custom</b> pentru module specifice (Registre Sportive, Anuar, Galeria Marilor Sportivi, BI, Chatbot, Mobil).</td></tr>
+    <tr><th>Infrastructură țintă</th><td>Cloud Privat Guvernamental (CPG) pe Azure Stack Hub, arhitectură cloud-native, containerizare Kubernetes, DR activ-pasiv (RPO&lt;15 min, RTO&lt;1h).</td></tr>
+    <tr><th>Constrângere AI</th><td>Interzisă explicit integrarea cu ChatGPT/Gemini/DeepSeek în Chatbot, Portal și modulul BI — obligatoriu model NLP/AI propriu, antrenabil, găzduit intern.</td></tr>
+  </table>
+</section>
+
+<!-- ================= ROADMAP ================= -->
+<section id="roadmap">
+  <h2>2. Roadmap &amp; Faze de Implementare (24 luni)</h2>
+  <p class="lead">Planificare la nivel de flux de lucru (L = lună de contract). Fazele se derulează parțial în paralel; activitățile individuale din graficul real (Gantt/WBS) nu vor depăși 14 zile calendaristice fiecare.</p>
+
+  <div class="gantt-wrap">
+    <div class="gantt-scale">
+      <div></div>
+      <div>L1</div><div>L2</div><div>L3</div><div>L4</div><div>L5</div><div>L6</div>
+      <div>L7</div><div>L8</div><div>L9</div><div>L10</div><div>L11</div><div>L12</div>
+      <div>L13</div><div>L14</div><div>L15</div><div>L16</div><div>L17</div><div>L18</div>
+      <div>L19</div><div>L20</div><div>L21</div><div>L22</div><div>L23</div><div>L24</div>
+    </div>
+
+    <div class="gantt-row">
+      <div class="label">1. Livrare &amp; instalare HW</div>
+      <div class="gantt-track"><div class="bar" style="left:0%;width:12.5%;background:var(--amber);">L1–L3</div></div>
+    </div>
+    <div class="gantt-row">
+      <div class="label">2. Analiză business &amp; proiectare</div>
+      <div class="gantt-track"><div class="bar" style="left:0%;width:33.3%;background:var(--teal);">L1–L8</div></div>
+    </div>
+    <div class="gantt-row">
+      <div class="label">3. Dezvoltare soluție TIC (13 module)</div>
+      <div class="gantt-track"><div class="bar" style="left:0%;width:54.2%;background:var(--blue);">L1–L13 · dezvoltare + testare internă</div></div>
+    </div>
+    <div class="gantt-row">
+      <div class="label">4. Securitate cibernetică</div>
+      <div class="gantt-track"><div class="bar" style="left:29.2%;width:29.2%;background:var(--red);">L8–L15</div></div>
+    </div>
+    <div class="gantt-row">
+      <div class="label">5. Implementare sistem integrat</div>
+      <div class="gantt-track">
+        <div class="bar" style="left:50%;width:5.8%;background:#8b5cf6;">ANS</div>
+        <div class="bar" style="left:55.8%;width:5.8%;background:#7c3aed;">Federații</div>
+        <div class="bar" style="left:61.6%;width:5.8%;background:#6d28d9;">Cluburi</div>
+        <div class="bar" style="left:67.4%;width:5.8%;background:#5b21b6;">Sportivi</div>
+        <div class="bar" style="left:73.2%;width:5.8%;background:#4c1d95;">Alte structuri</div>
+      </div>
+    </div>
+    <div class="gantt-row">
+      <div class="label">6. Testarea platformei (UAT+pentest)</div>
+      <div class="gantt-track"><div class="bar" style="left:75%;width:25%;background:var(--green);">L19–L24</div></div>
+    </div>
+    <div class="gantt-row">
+      <div class="label">7. Instruirea personalului (130 pers.)</div>
+      <div class="gantt-track"><div class="bar" style="left:75%;width:20.8%;background:var(--orange);">L19–L23</div></div>
+    </div>
+    <div class="gantt-row">
+      <div class="label">Recepție finală</div>
+      <div class="gantt-track"><div class="diamond" style="left:99%;background:#0f2942;"></div></div>
+    </div>
+
+    <div class="legend">
+      <span><i style="background:var(--amber)"></i>Hardware</span>
+      <span><i style="background:var(--teal)"></i>Analiză/Proiectare</span>
+      <span><i style="background:var(--blue)"></i>Dezvoltare</span>
+      <span><i style="background:var(--red)"></i>Securitate</span>
+      <span><i style="background:#7c3aed"></i>Implementare pe faze</span>
+      <span><i style="background:var(--green)"></i>Testare/UAT</span>
+      <span><i style="background:var(--orange)"></i>Instruire</span>
+      <span>◆ Recepție/milestone</span>
+    </div>
+    <p class="note">După luna 24 (recepție finală): <b>garanție sistem 36 luni</b> (SLA remediere: critic 4h/24h, mediu 8h/48h, minor 48h/96h) + rapoarte trimestriale de garanție. Plățile sunt eșalonate în 3 tranșe pe bază de PV de recepție parțială (vezi secțiunea Livrabile).</p>
+  </div>
+</section>
+
+<!-- ================= ARHITECTURA ================= -->
+<section id="arhitectura">
+  <h2>3. Arhitectură Software (vedere pe straturi)</h2>
+  <p class="lead">Arhitectură API-first, cloud-native, cu backend complet decuplat de interfețe. Toate straturile comunică prin API-uri documentate OpenAPI 3.x, printr-un API Gateway central.</p>
+
+  <div class="arch">
+    <div class="layer l1">
+      <h4>Strat 1 — Canale de acces (Front-end)</h4>
+      <div class="items">
+        <span class="item">Portal Public ANS (web, responsive, WCAG 2.1 AA)</span>
+        <span class="item">Aplicație mobilă Portal (Android/iOS)</span>
+        <span class="item">Aplicație mobilă DMS internă (biometric, privată)</span>
+        <span class="item">Chatbot/Asistent Virtual (NLP propriu)</span>
+        <span class="item">Panouri interne Federații/Cluburi/CNFPA/Galeria Sportivilor</span>
+      </div>
+    </div>
+    <div class="arrow-down">▼ API Gateway (REST/SOAP/GraphQL/gRPC · OAuth2/OIDC · JWT · rate limiting · OpenAPI 3.x)</div>
+    <div class="layer l2">
+      <h4>Strat 2 — Integrare &amp; Orchestrare</h4>
+      <div class="items">
+        <span class="item">API Gateway centralizat</span>
+        <span class="item">ESB / middleware integrare</span>
+        <span class="item">Webhook-uri &amp; Message Queues (RabbitMQ/Kafka)</span>
+        <span class="item">Circuit Breaker / Retry / Event-driven</span>
+        <span class="item">Vault gestionare secrete</span>
+      </div>
+    </div>
+    <div class="arrow-down">▼</div>
+    <div class="layer l3">
+      <h4>Strat 3 — Module aplicative (business logic)</h4>
+      <div class="items">
+        <span class="item">Portal Public (COTS)</span>
+        <span class="item">Registratură/DMS (COTS + BPMN 2.0 workflow)</span>
+        <span class="item">Registrul Sportiv (Federații/Cluburi)</span>
+        <span class="item">Registrul Sportivilor &amp; Antrenorilor</span>
+        <span class="item">Registrul Bazelor Sportive</span>
+        <span class="item">Anuarul Sportului</span>
+        <span class="item">Galeria Marilor Sportivi (3D/tur virtual)</span>
+        <span class="item">CNFPA (LMS COTS)</span>
+        <span class="item">Arhivă electronică (OAIS)</span>
+        <span class="item">Modul Administrativ</span>
+        <span class="item">Chatbot NLP propriu</span>
+        <span class="item">Rapoarte BI/DWH</span>
+      </div>
+    </div>
+    <div class="arrow-down">▼</div>
+    <div class="layer l4">
+      <h4>Strat 4 — Date</h4>
+      <div class="items">
+        <span class="item">SGBDR criptat (MySQL/MSSQL/Oracle/PostgreSQL)</span>
+        <span class="item">Data Warehouse / Data Mart (star schema)</span>
+        <span class="item">ETL</span>
+        <span class="item">Depozit documente + Full-Text Search + OCR/ICR</span>
+        <span class="item">Storage arhivă (300dpi, PDF/A, XML metadate)</span>
+      </div>
+    </div>
+    <div class="arrow-down">▼</div>
+    <div class="layer l5">
+      <h4>Strat 5 — Securitate transversală</h4>
+      <div class="items">
+        <span class="item">IAM/SSO/MFA (OIDC/SAML/SCIM 2.0)</span>
+        <span class="item">RBAC granular</span>
+        <span class="item">WAF (2× HA)</span>
+        <span class="item">Firewall NGFW cloud (2× HA)</span>
+        <span class="item">Anti-DDoS (SaaS, SLA 99,9%)</span>
+        <span class="item">SIEM/XDR + Vulnerability Scanner</span>
+        <span class="item">EDR/MDR Plus + SOC 24/7</span>
+      </div>
+    </div>
+    <div class="arrow-down">▼</div>
+    <div class="layer l6">
+      <h4>Strat 6 — Infrastructură Cloud</h4>
+      <div class="items">
+        <span class="item">Cloud Privat Guvernamental — Azure Stack Hub (IaaS)</span>
+        <span class="item">Virtualizare Bare-Metal (Tip 1, multi-OS)</span>
+        <span class="item">Orchestrare Kubernetes multi-cloud + GitOps/Terraform</span>
+        <span class="item">Disaster Recovery activ-pasiv (RPO&lt;15min, RTO&lt;1h)</span>
+        <span class="item">20 conexiuni VPN IPSec</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= MODULE ================= -->
+<section id="module">
+  <h2>4. Module Funcționale &amp; Task-uri de Dezvoltare</h2>
+  <p class="lead">Pentru fiecare din cele 13 module: scop, cerințe cheie și task-urile principale de proiect (analiză → dezvoltare → integrare → testare).</p>
+
+  <div class="modules">
+
+    <div class="mcard" style="border-top-color:var(--blue)">
+      <h3><span class="idx">1</span>Portal Public ANS</h3>
+      <p class="desc">Front-office unic: Servicii Electronice Complete/Parțiale, Spațiu Privat Virtual (SPV), formulare cu pre-populare, notificări status.</p>
+      <span class="tag">COTS</span><span class="tag">SOAP/REST</span><span class="tag">Form Builder</span>
+      <ul>
+        <li>Analiză 11 servicii publice de digitalizat + mapare flux "grad 4/5"</li>
+        <li>Configurare Form Builder + generare PDF identic formular oficial</li>
+        <li>Implementare SPV ("My Account") + istoric interacțiuni</li>
+        <li>Integrare notificări email automate pe status solicitare + feedback/rating</li>
+        <li>Autentificare cu email ca identificator unic + SSO către IAM</li>
+        <li>Testare compatibilitate cross-browser (Edge/Firefox/Safari/Chrome)</li>
+      </ul>
+    </div>
+
+    <div class="mcard" style="border-top-color:var(--teal)">
+      <h3><span class="idx">2</span>Registratură – Management Documente (DMS)</h3>
+      <p class="desc">Sistem de ticketing instituțional: depozit/captură documente, registratură electronică, motor workflow BPMN 2.0.</p>
+      <span class="tag">COTS</span><span class="tag">BPMN 2.0</span><span class="tag">OCR/ICR</span>
+      <ul>
+        <li>Configurare organigramă instituțională + reguli numerotare automată (Tabel metadate)</li>
+        <li>Implementare Full-Text Search + OCR asincron (Office/XML/PDF/imagini) + ICR scris de mână</li>
+        <li>Editor WYSIWYG colaborativ cu Track Changes/Versioning (CRDT/OT)</li>
+        <li>Calcul automat termen legal L544/2001 + gestionare suspendare termen</li>
+        <li>Proiectare fluxuri BPMN: aprobare/avizare, escaladare automată, delegare pe concediu</li>
+        <li>Cod unic de verificare document pentru petent + integrare email atașamente</li>
+        <li>Export JSON/DOCX/PDF-A + rapoarte Excel/CSV/PDF</li>
+      </ul>
+    </div>
+
+    <div class="mcard" style="border-top-color:var(--purple)">
+      <h3><span class="idx">3</span>Registrul Sportiv – Federații &amp; Cluburi</h3>
+      <p class="desc">Emitere/gestiune Certificat de Identitate Sportivă (CIS), afiliere, calendar competițional, transferuri.</p>
+      <span class="tag">Legea 69/2000</span><span class="tag">Imprimeria Națională</span>
+      <ul>
+        <li>Model de date federații/cluburi/asociații județene/ligi (istoric complet denumire/sediu)</li>
+        <li>Flux emitere/suspendare/retragere CIS + interfață tipărire Imprimeria Națională</li>
+        <li>Modul viză medicală cu notificare expirare + blocare automată participare competiții</li>
+        <li>Flux transfer sportivi (definitiv/temporar) cu verificare eligibilitate</li>
+        <li>Evidență taxe afiliere cu blocare acces la neplată</li>
+        <li>Integrare date radiere cluburi (ANAF, judecătorii) – consultare/verificare</li>
+        <li>Integrare obligatorie cu Registratura Electronică + Motorul de Workflow</li>
+      </ul>
+    </div>
+
+    <div class="mcard" style="border-top-color:var(--purple)">
+      <h3><span class="idx">4</span>Registrul Sportivilor &amp; Antrenorilor</h3>
+      <p class="desc">Registru Național (Ordin ANS 302/2023), administrat cu INCS. &gt;100.000 sportivi, 4.619 cluburi.</p>
+      <span class="tag">CNP unic</span><span class="tag">GDPR</span>
+      <ul>
+        <li>Model de date cu CNP ca identificator unic + reguli minori/tutore legal</li>
+        <li>Import în masă Excel/CSV + validare/deduplicare</li>
+        <li>Cont public sportiv: transfer club, dezafiliere, istoric competiții</li>
+        <li>Serviciu "Pașaport Sportiv" &amp; "Pașaport Antrenor" (generare document + acces public)</li>
+        <li>Flux certificare "antrenor emerit" + asociere antrenor–club–federație–bază sportivă</li>
+        <li>Mecanism ștergere date conform GDPR (dreptul de a fi uitat)</li>
+      </ul>
+    </div>
+
+    <div class="mcard" style="border-top-color:var(--purple)">
+      <h3><span class="idx">5</span>Registrul Bazelor Sportive</h3>
+      <p class="desc">63 baze omologate; omologare realizată de federații, ANS are rol de coordonare.</p>
+      <span class="tag">9 categorii B1–B9</span>
+      <ul>
+        <li>Model de date UPS: construcții acoperite, terenuri exterior, construcții complementare</li>
+        <li>Workflow ciclu de viață (inițiere→validare→aprobare→publicare) fără ștergere fizică</li>
+        <li>Diferențiere update minor vs. major (statut juridic/stare funcțională)</li>
+        <li>Integrare cu direcțiile sportive județene + Consilii Locale/Județene</li>
+        <li>Asociere bază sportivă ↔ federație ↔ antrenor/club</li>
+      </ul>
+    </div>
+
+    <div class="mcard" style="border-top-color:var(--teal)">
+      <h3><span class="idx">6</span>Anuarul Sportului</h3>
+      <p class="desc">Publicație oficială anuală generată automat, sursă pentru Institutul Național de Statistică.</p>
+      <ul>
+        <li>Motor de generare automată pe date validate (fără input manual) + recalculare la modificări sursă</li>
+        <li>Clasamente multi-dimensionale: federație, județ, individual, unitate sportivă, medalii, vârstă</li>
+        <li>Stări document: Provizoriu / Validat / Oficial + versionare istorică</li>
+        <li>Almanah Online: hartă interactivă România + profil public automat sportiv/antrenor</li>
+        <li>Export PDF/Excel + integrare date către INS</li>
+      </ul>
+    </div>
+
+    <div class="mcard" style="border-top-color:var(--amber)">
+      <h3><span class="idx">7</span>Galeria Marilor Sportivi</h3>
+      <p class="desc">&gt;10.000 artefacte (~7.000 speciale, Legea 182/2000, Legea 311/2003).</p>
+      <span class="tag">QR</span><span class="tag">3D/Tur virtual</span>
+      <ul>
+        <li>Modul bilete online cu cod QR + capacitate configurabilă per interval orar</li>
+        <li>Tur virtual interactiv + ghid audio + integrare Arhiva TVR</li>
+        <li>Pipeline digitizare 2D (min. 12MP JPEG/PNG web + TIFF arhivă) și 3D "spin view"</li>
+        <li>Configurator expoziții digitale multilingv (RO/EN)</li>
+        <li>Integrare cu aplicația mobilă (rezervări, tur digital)</li>
+      </ul>
+    </div>
+
+    <div class="mcard" style="border-top-color:var(--green)">
+      <h3><span class="idx">8</span>CNFPA (Formare/Certificare Antrenori)</h3>
+      <p class="desc">Platformă LMS COTS acreditată Ministerul Muncii, fluxuri certificare tripartite ANS-Federație-CNFPA.</p>
+      <span class="tag">LMS COTS</span><span class="tag">SCORM</span><span class="tag">WCAG 2.1</span>
+      <ul>
+        <li>Configurare Authoring Tool + min. 25 șabloane interactive + export SCORM</li>
+        <li>Fluxuri: certificat absolvire, carnet antrenor, clasificare profesională, recunoaștere UE/SEE</li>
+        <li>Bancă de întrebări + evaluări complexe + generare AI lecții/teste</li>
+        <li>Asistent de învățare AI cu hartă de cunoștințe (model propriu, nu ChatGPT/Gemini)</li>
+        <li>Integrare monetizare (PayPal/Stripe) + roluri Admin/Tutor/Student/Super Admin ANS</li>
+      </ul>
+    </div>
+
+    <div class="mcard" style="border-top-color:var(--navy)">
+      <h3><span class="idx">9</span>Arhivă Electronică</h3>
+      <p class="desc">Conform ISO 14721 (OAIS), ISO 15489, ISO 27001. Digitizare 500 din 2.274 ml (≈2,5 mil. pagini).</p>
+      <span class="tag">OCR 300dpi</span><span class="tag">PDF/A</span>
+      <ul>
+        <li>Proiectare depozit digital + indexare automată (CNP, tip document) + interoperabilitate DMS</li>
+        <li>Definire flux fizic: preluare→grupare→dosare (max 250 file)→legare cod de bare→inventariere</li>
+        <li>Pipeline digitizare (min 300dpi, PDF searchable) + indexare full-text OCR + export XML (max 5 indecși)</li>
+        <li>Obținere autorizații: Arhivele Naționale, ISU, Autoritatea Rutieră Română</li>
+        <li>Implementare SLA livrare: 4h digital urgent / 24h-5 zile fizic + condiții microclimat</li>
+        <li>Plan migrare ulterioară către Cloudul Guvernamental</li>
+      </ul>
+    </div>
+
+    <div class="mcard" style="border-top-color:var(--gray)">
+      <h3><span class="idx">10</span>Modul Administrativ</h3>
+      <p class="desc">Management utilizatori/roluri, entități, audit, notificări.</p>
+      <span class="tag">2FA</span><span class="tag">Audit trail</span>
+      <ul>
+        <li>Gestiune utilizatori/permisiuni granulare per modul + 2FA (Authenticator/Email/SMS)</li>
+        <li>Dashboard-uri BI interne (sportivi activi, evoluție)</li>
+        <li>Integrare OCR pentru extragere date CI/cazier judiciar</li>
+        <li>Motor notificări configurabile (expirare viză, termene)</li>
+        <li>Audit complet: IP, browser, endpoint, valori anterioare/noi, autentificări eșuate</li>
+      </ul>
+    </div>
+
+    <div class="mcard" style="border-top-color:var(--red)">
+      <h3><span class="idx">11</span>Chatbot / Asistent Virtual</h3>
+      <p class="desc">NLP+NLG propriu, 24/7, interzis ChatGPT/Gemini/DeepSeek.</p>
+      <span class="tag">AI propriu</span><span class="tag">SR ISO/IEC 42001</span>
+      <ul>
+        <li>Selecție/antrenare model NLP local pe corpus specific ANS (registre publice)</li>
+        <li>Detectare stare emoțională utilizator + interacțiune vocală</li>
+        <li>Verificare preliminară completitudine documente încărcate</li>
+        <li>Elaborare metodologie de gestionare a riscurilor AI (aliniere SR ISO/IEC 42001)</li>
+        <li>Integrare cu Portal, Aplicație mobilă și modulul BI (interogare NL)</li>
+      </ul>
+    </div>
+
+    <div class="mcard" style="border-top-color:var(--blue)">
+      <h3><span class="idx">12</span>Rapoarte Business Intelligence</h3>
+      <p class="desc">Înlocuire rapoarte manuale .xls/.doc de la Direcții Județene, cluburi, INCS, CNFPA, Galeria Sportivilor.</p>
+      <span class="tag">ETL</span><span class="tag">Star Schema</span><span class="tag">GIS</span>
+      <ul>
+        <li>Proiectare Data Warehouse/Data Mart (star schema) + pipeline ETL automatizat</li>
+        <li>Hartă GIS interactivă + distribuție teritorială</li>
+        <li>Configurator vizual rapoarte fără SQL + livrare automată email (zilnic/săpt./lunar)</li>
+        <li>Modul analitic DMS: scoruri Efficiency/Delay/Throughput/Approval Quality + grafice avansate</li>
+        <li>Modul AI/NLP interogare BI (text→SQL, read-only, model local)</li>
+      </ul>
+    </div>
+
+    <div class="mcard" style="border-top-color:var(--orange)">
+      <h3><span class="idx">13</span>Aplicații Mobile (Android/iOS)</h3>
+      <p class="desc">App public portal + app DMS internă dedicată (biometric).</p>
+      <span class="tag">Android</span><span class="tag">iOS</span><span class="tag">Biometric</span>
+      <ul>
+        <li>App publică: Registrul Sportiv, CIS, calendar competiții, ghid baze sportive, asistent virtual</li>
+        <li>Modul Muzeu mobil: rezervări, bilete QR, tur digital</li>
+        <li>Modul CNFPA mobil: catalog cursuri, player, certificate/carnet digital</li>
+        <li>Modul Finanțare/Sponsorizare: flux digital granturi + status timp real</li>
+        <li>App DMS internă: autentificare biometrică, scanare cameră, notificări push, criptare locală</li>
+        <li>Publicare conform politicilor Google Play/Apple Store (responsabilitate prestator)</li>
+      </ul>
+    </div>
+
+  </div>
+</section>
+
+<!-- ================= INFRA ================= -->
+<section id="infra">
+  <h2>5. Infrastructură Cloud &amp; Hardware</h2>
+  <p class="lead">Toată infrastructura este IaaS în Cloudul Privat Guvernamental (Azure Stack Hub) — nu se achiziționează servere fizice dedicate proiectului. Licențe COTS în regim BYOL. Acoperire minimă: 36 luni.</p>
+
+  <h3>Dimensionare VM (arhitectură HA activ-pasiv, 2 noduri)</h3>
+  <table>
+    <tr><th>Componentă</th><th>Nr. VM</th><th>Rol</th><th>CPU</th><th>RAM</th><th>Storage</th></tr>
+    <tr><td>Aplicație DMS</td><td>2</td><td>Active+Passive</td><td>6 vCPU</td><td>12 GB</td><td>300 GB SSD</td></tr>
+    <tr><td>Portal (intern+extern)</td><td>2</td><td>Active+Passive</td><td>6 vCPU</td><td>12 GB</td><td>300 GB SSD</td></tr>
+    <tr><td>Bază de date</td><td>2</td><td>Primary+Replica</td><td>6 vCPU</td><td>24 GB</td><td>1 TB SSD</td></tr>
+    <tr><td>BI</td><td>2</td><td>Active+Passive</td><td>6 vCPU</td><td>12 GB</td><td>150 GB SSD</td></tr>
+    <tr><td>LMS (CNFPA)</td><td>1</td><td>Standalone</td><td>3 vCPU</td><td>6 GB</td><td>100 GB SSD</td></tr>
+    <tr><td>Tur virtual 3D</td><td>1</td><td>Standalone</td><td>6 vCPU</td><td>12 GB</td><td>300 GB SSD</td></tr>
+    <tr><td>Chatbot</td><td>1</td><td>Standalone</td><td>4 vCPU</td><td>8 GB</td><td>50 GB SSD</td></tr>
+    <tr><td>Servicii auxiliare</td><td>2</td><td>Procesare</td><td>3 vCPU</td><td>6 GB</td><td>100 GB SSD</td></tr>
+    <tr><td>Cache/sesiuni</td><td>2</td><td>Cache</td><td>4 vCPU</td><td>8 GB</td><td>50 GB SSD</td></tr>
+    <tr><td>Load Balancer</td><td>2</td><td>Routing</td><td>2 vCPU</td><td>2 GB</td><td>15 GB SSD</td></tr>
+    <tr><td>Monitoring</td><td>1</td><td>Observabilitate</td><td>2 vCPU</td><td>4 GB</td><td>15 GB SSD</td></tr>
+    <tr><td>WAF Enterprise</td><td>2</td><td>WAF</td><td>8 vCPU</td><td>16 GB</td><td>15 GB SSD</td></tr>
+    <tr><td>Cloud Firewall</td><td>2</td><td>Perimetru</td><td>1 vCPU</td><td>2 GB</td><td>32 GB SSD</td></tr>
+    <tr><td>SIEM central</td><td>1</td><td>Mgmt/analiză</td><td>8 vCPU</td><td>16 GB</td><td>500 GB SSD</td></tr>
+    <tr><td>SIEM colectare</td><td>1</td><td>Colectare</td><td>4 vCPU</td><td>16 GB</td><td>250 GB SSD</td></tr>
+    <tr><td>Scanner vulnerabilități</td><td>1</td><td>—</td><td>4 vCPU</td><td>16 GB</td><td>30 GB SSD</td></tr>
+    <tr><td>MDR Plus</td><td>1</td><td>—</td><td>4 vCPU</td><td>16 GB</td><td>30 GB SSD</td></tr>
+    <tr><td>IAM cluster</td><td>3</td><td>Security</td><td>8 vCPU</td><td>32 GB</td><td>300 GB SSD</td></tr>
+  </table>
+
+  <div class="two-col" style="margin-top:18px;">
+    <div>
+      <h3>Software de bază</h3>
+      <table>
+        <tr><th>Componentă</th><th>Cantitate</th><th>Notă</th></tr>
+        <tr><td>Sistem operare desktop</td><td>50 buc.</td><td>x64, licență perpetuă, BitLocker</td></tr>
+        <tr><td>Suită productivitate</td><td>50 buc.</td><td>Licență perpetuă on-premise</td></tr>
+        <tr><td>Sistem operare Server</td><td>2 buc.</td><td>Suport comercial ≥ 31.12.2029</td></tr>
+        <tr><td>Management centralizat IT</td><td>1 pachet</td><td>Patch mgmt, inventariere, RBAC/AD</td></tr>
+        <tr><td>SGBDR</td><td>1 pachet</td><td>Criptare, ERD, export CSV/XML/JSON</td></tr>
+      </table>
+    </div>
+    <div>
+      <h3>Echipamente end-user</h3>
+      <table>
+        <tr><th>Echipament</th><th>Cantitate</th><th>Notă</th></tr>
+        <tr><td>Desktop All-in-One</td><td>50 buc.</td><td>TPM 2.0, FIPS 140-2, garanție 36 luni NBD</td></tr>
+        <tr><td>Tablete rugged</td><td>25 buc.</td><td>IP66, 5G eSIM, garanție 24 luni</td></tr>
+        <tr><td>Imprimante departamentale</td><td>3 buc.</td><td>A3 color duplex, garanție 24 luni</td></tr>
+        <tr><td>Scanner performant</td><td>1 buc.</td><td>600dpi, 4000 pag/zi, garanție 12 luni</td></tr>
+      </table>
+    </div>
+  </div>
+  <p class="note">Disaster Recovery: mediu activ-pasiv complet separat, identic dimensionat, RPO&lt;15 min / RTO&lt;1h, testare trimestrială automatizată. Conectivitate: 20 conexiuni VPN IPSec securizate.</p>
+</section>
+
+<!-- ================= SECURITATE ================= -->
+<section id="securitate">
+  <h2>6. Securitate</h2>
+  <table>
+    <tr><th>Componentă</th><th>Cerințe cheie</th><th>Durată/SLA</th></tr>
+    <tr><td>IAM / SSO / MFA</td><td>OIDC/SAML 2.0/LDAP/SCIM 2.0, TOTP/WebAuthn/FIDO2, Zero Trust, HA pe PostgreSQL</td><td>—</td></tr>
+    <tr><td>RBAC</td><td>Model granular CRUD+Execute pe orchestrare/infra/aplicații/observabilitate</td><td>—</td></tr>
+    <tr><td>Gestionare secrete</td><td>Vault centralizat, integrare în workflow-uri</td><td>—</td></tr>
+    <tr><td>Firewall cloud (NGFW)</td><td>2 instanțe HA, L3-L7, IDS/IPS, VPN ≥25 conexiuni</td><td>Subscripție ≥36 luni</td></tr>
+    <tr><td>WAF</td><td>2 instanțe HA, reguli OWASP, ≥1 Gbps/instanță</td><td>Subscripție ≥36 luni</td></tr>
+    <tr><td>Protecție DDoS</td><td>SaaS global, L3/L4/L7, WAF cloud + CDN</td><td>SLA ≥99,9%, ≥36 luni</td></tr>
+    <tr><td>MDR Plus / EDR</td><td>Min. 120 echipamente/VM, ML zero-day, sandbox cloud, SOC 24/7</td><td>Licență 36 luni</td></tr>
+    <tr><td>SIEM/XDR</td><td>Min. 120 surse loguri simultan, corelare reguli, dashboard</td><td>—</td></tr>
+    <tr><td>Scanner vulnerabilități</td><td>Scanare CVE autentificată/neautentificată</td><td>Drept utilizare ≥36 luni</td></tr>
+    <tr><td>Monitorizare MDR/SOC</td><td>Program 8x5, timp răspuns NBD, raport lunar</td><td>—</td></tr>
+    <tr><td>Testare &amp; audit</td><td>Pentest black-box + white-box de terță parte + audit tehnic — condiție pentru recepția finală</td><td>Recepție finală numai după remediere completă</td></tr>
+    <tr><td>Conformitate</td><td>ISO/IEC 27001, GDPR (Reg. UE 2016/679 + Legea 190/2018), OWASP secure coding</td><td>—</td></tr>
+  </table>
+</section>
+
+<!-- ================= INTEGRARI ================= -->
+<section id="integrari">
+  <h2>7. Integrări Externe</h2>
+  <table>
+    <tr><th>Sistem/Entitate</th><th>Scop integrării</th><th>Module implicate</th></tr>
+    <tr><td><b>ROeID</b></td><td>Identificare/autentificare electronică cetățeni</td><td>Portal, IAM</td></tr>
+    <tr><td><b>PDURo / PCUe</b> (HG 112/2023)</td><td>Portal Digital Unic al României — interoperabilitate servicii publice</td><td>Portal, Registratură</td></tr>
+    <tr><td><b>Imprimeria Națională</b></td><td>Tipărire fizică Certificat de Identitate Sportivă (CIS)</td><td>Registrul Sportiv</td></tr>
+    <tr><td><b>ANAF / Judecătorii</b></td><td>Verificare status juridic la radiere cluburi</td><td>Registrul Sportiv</td></tr>
+    <tr><td><b>INCS</b> (Institutul Național de Cercetare pentru Sport)</td><td>Co-administrare Registrul Sportivilor și Antrenorilor</td><td>Registrul Sportivilor</td></tr>
+    <tr><td><b>Direcții Județene pentru Sport / Consilii Locale-Județene</b></td><td>Coordonare omologare baze sportive, rapoarte</td><td>Registrul Bazelor Sportive, BI</td></tr>
+    <tr><td><b>Institutul Național de Statistică</b></td><td>Sursă date oficiale din Anuarul Sportului</td><td>Anuarul Sportului</td></tr>
+    <tr><td><b>Arhiva TVR</b></td><td>Materiale media pentru tur virtual muzeu</td><td>Galeria Marilor Sportivi</td></tr>
+    <tr><td><b>Ministerul Muncii</b></td><td>Acreditare platformă CNFPA</td><td>CNFPA</td></tr>
+    <tr><td><b>Arhivele Naționale / ISU / Autoritatea Rutieră Română</b></td><td>Autorizații arhivare fizică și transport documente</td><td>Arhivă</td></tr>
+    <tr><td><b>Cloudul Guvernamental</b> (viitor)</td><td>Migrare ulterioară a arhivei/infrastructurii</td><td>Arhivă, Infrastructură</td></tr>
+    <tr><td><b>Google Play / Apple App Store</b></td><td>Publicare și mentenanță aplicații mobile</td><td>Aplicații mobile</td></tr>
+    <tr><td><b>ITSM / CMDB</b></td><td>Tichetare automată, sincronizare inventar resurse</td><td>Infrastructură, Administrativ</td></tr>
+  </table>
+  <p class="note">Standard tehnic transversal: REST/SOAP/GraphQL/gRPC, OpenAPI 3.x, OAuth 2.0 + OIDC, API Gateway cu rate limiting și versionare backward-compatible.</p>
+</section>
+
+<!-- ================= ECHIPA ================= -->
+<section id="echipa">
+  <h2>8. Echipa de Proiect (Ofertant)</h2>
+  <h3>Experți cheie (implementare platformă)</h3>
+  <table>
+    <tr><th>Rol</th><th>Experiență minimă</th><th>Responsabilități principale</th></tr>
+    <tr><td>Manager de proiect</td><td>5 ani; proiect similar ≥1.000.000 EUR</td><td>Management contract, arie, riscuri, comunicare, raportare</td></tr>
+    <tr><td>Expert analiză business</td><td>3 ani; certificare CBAP®</td><td>Analiză cerințe, procese interne, interviuri stakeholderi</td></tr>
+    <tr><td>Expert arhitect software Full-Stack</td><td>3 ani</td><td>Arhitectură soluție, pattern-uri (Retry/Circuit Breaker), containerizare</td></tr>
+    <tr><td>Expert securitate informatică</td><td>3 ani; certificare</td><td>Vulnerabilități, proceduri securitate, testare finală</td></tr>
+    <tr><td>Expert integrare</td><td>3 ani</td><td>Orchestrare API, mapări date, Vault, event-driven</td></tr>
+    <tr><td>Expert dezvoltare software Full-Stack</td><td>3 ani</td><td>Dezvoltare module, integrare legacy, ETL, Message Queues</td></tr>
+    <tr><td>Expert baze de date</td><td>3 ani; certificare</td><td>Model date, securitate BD, backup/recovery</td></tr>
+    <tr><td>Expert testare software</td><td>3 ani; certificare</td><td>Planuri/cazuri test, rapoarte, suport garanție</td></tr>
+    <tr><td>Expert instruire</td><td>3 ani; certificare formare</td><td>Sesiuni formare, evaluare, materiale</td></tr>
+  </table>
+  <h3>Experți arhivare (fizică &amp; digitizare)</h3>
+  <table>
+    <tr><th>Rol</th><th>Nr. persoane</th><th>Notă</th></tr>
+    <tr><td>Coordonator tehnic arhivare fizică</td><td>1</td><td>5 ani exp.; contract conform Legea 16/1996</td></tr>
+    <tr><td>Coordonator tehnic digitizare</td><td>1</td><td>5 ani exp.; contract scanare similar</td></tr>
+    <tr><td>Coordonator tehnic procesare date</td><td>1</td><td>5 ani exp.; digitizare + metadate</td></tr>
+    <tr><td>Arhiviști/Arhivari atestați</td><td>min. 5 + 5</td><td>Prelucrare documente, conservare</td></tr>
+    <tr><td>Legători manuali</td><td>min. 2</td><td>Legare unități arhivistice</td></tr>
+    <tr><td>Operatori scanare</td><td>min. 5</td><td>Digitizare</td></tr>
+    <tr><td>Operatori procesare date</td><td>min. 3</td><td>Indexare/validare</td></tr>
+  </table>
+  <p class="note">Reguli: un expert = un singur rol; înlocuire în max. 2 săptămâni cu profil egal/superior, pe cheltuiala prestatorului.</p>
+</section>
+
+<!-- ================= LIVRABILE ================= -->
+<section id="livrabile">
+  <h2>9. Livrabile Cheie &amp; Grafic de Plăți</h2>
+  <table>
+    <tr><th>#</th><th>Livrabil</th><th>Fază</th><th>Tranșă plată</th></tr>
+    <tr><td>1</td><td>Rapoarte instalare/PV recepție echipamente HW</td><td>L1–L3</td><td rowspan="2">Tranșa 1 — după livrare/instalare HW + teste acceptanță + licențe SW standard</td></tr>
+    <tr><td>2</td><td>Certificate garanție/conformitate HW</td><td>L1–L3</td></tr>
+    <tr><td>3</td><td>Raport de analiză de business și proiectare</td><td>L1–L8</td><td rowspan="2">Tranșa 2 — după livrare/instalare licențe SW + verificare funcționalități standard</td></tr>
+    <tr><td>4</td><td>Kituri instalare / chei acces software</td><td>L1–L13</td></tr>
+    <tr><td>5</td><td>Cod sursă, documentație tehnică, release notes (13 module)</td><td>L1–L13</td><td rowspan="4">Tranșa 3 — după finalizare analiză/dezvoltare/testare/instruire + acceptanță</td></tr>
+    <tr><td>6</td><td>Documentație securitate cibernetică + Plan continuitate/DR</td><td>L8–L15</td></tr>
+    <tr><td>7</td><td>Rapoarte implementare pe 5 faze (ANS→Federații→Cluburi→Sportivi→Alte structuri)</td><td>L13–L20</td></tr>
+    <tr><td>8</td><td>Plan/rapoarte testare + Plan Asigurare Calitate</td><td>L19–L24</td></tr>
+    <tr><td>9</td><td>Materiale &amp; rapoarte instruire (130 persoane)</td><td>L19–L23</td><td rowspan="1"></td></tr>
+    <tr><td>10</td><td>Raport final de proiect</td><td>L24</td><td>Condiție recepție finală</td></tr>
+  </table>
+  <p class="note">Termen de plată: 30 zile de la factura electronică (RO e-Factura), condiționat de PV de Recepție fără obiecțiuni. Recepția finală se face doar după remedierea completă a vulnerabilităților identificate în testele de penetrare ale terței părți.</p>
+</section>
+
+<!-- ================= RISCURI ================= -->
+<section id="riscuri">
+  <h2>10. Riscuri &amp; Indicatori de Performanță</h2>
+  <h3>Top riscuri (din 15 identificate în caiet)</h3>
+  <table>
+    <tr><th>Risc</th><th>Impact</th><th>Probabilitate</th><th>Măsuri de atenuare</th></tr>
+    <tr><td>Întârziere avizare decizii de către Autoritatea Contractantă</td><td class="risk-high">Mare</td><td class="risk-high">Mare</td><td>Pregătire informații pentru decizii rapide, escaladare Comitet de Conducere</td></tr>
+    <tr><td>Nerespectare termene de subcontractori</td><td class="risk-high">Mare</td><td class="risk-med">Medie</td><td>Plan comunicare furnizori, marje de timp în grafic</td></tr>
+    <tr><td>Întârzieri proceduri de atribuire (contestații)</td><td class="risk-high">Mare</td><td class="risk-med">Medie</td><td>Descriere circumstanțe în planul de proiect</td></tr>
+    <tr><td>Resurse umane/financiare insuficiente</td><td class="risk-high">Mare</td><td class="risk-med">Medie</td><td>Personal back-up, monitorizare încărcare echipă</td></tr>
+    <tr><td>Schimbări legislative</td><td class="risk-high">Mare</td><td class="risk-med">Medie</td><td>Monitorizare legislativă, acte adiționale</td></tr>
+    <tr><td>Soluție tehnică diferită de proiectul inițial</td><td class="risk-high">Mare</td><td class="risk-low">Mică</td><td>Specialiști IT experimentați, variante intermediare</td></tr>
+    <tr><td>Depășire buget</td><td class="risk-high">Mare</td><td class="risk-low">Mică</td><td>Monitorizare/control conform metodologiei PM</td></tr>
+  </table>
+
+  <h3>KPI contractuali (scor 1–5)</h3>
+  <table>
+    <tr><th>Indicator</th><th>Ce măsoară</th><th>Prag critic</th></tr>
+    <tr><td>Raport de analiză și proiectare</td><td>Completitudine, aplicabilitate, relevanță</td><td>—</td></tr>
+    <tr><td>Livrabil adecvat scopului</td><td>Corelare cerințe ↔ implementare, migrare date</td><td>—</td></tr>
+    <tr><td>Livrabile la termen</td><td>Respectarea calendarului contractual</td><td>&gt;60 zile întârziere = Satisfăcător (2); &gt;120 zile = Nesatisfăcător (1)</td></tr>
+  </table>
+</section>
+
+<!-- ================= GUVERNANTA ================= -->
+<section id="guvernanta">
+  <h2>11. Guvernanță &amp; Metodologie de Proiect</h2>
+  <div class="two-col">
+    <div>
+      <h3>Structură de guvernanță (3 niveluri)</h3>
+      <table>
+        <tr><th>Nivel</th><th>Rol</th><th>Componență</th></tr>
+        <tr><td>1 — Conducere</td><td>Decizii strategice</td><td>Președinte (AC) + Reprezentant Prestator</td></tr>
+        <tr><td>2 — Coordonare</td><td>Planificare, urmărire, control</td><td>Responsabil proiect AC + Manager proiect Prestator</td></tr>
+        <tr><td>3 — Execuție</td><td>Livrare operațională</td><td>Echipele de proiect AC + Prestator</td></tr>
+      </table>
+    </div>
+    <div>
+      <h3>Cadru de raportare &amp; monitorizare</h3>
+      <ul>
+        <li>Kick-off + întâlniri de planificare la începutul fiecărei etape</li>
+        <li>Ședințe lunare de management + Gantt actualizat ("tracking Gantt")</li>
+        <li>Rapoarte lunare de progres + Registru de acțiuni</li>
+        <li>Registrul Riscurilor — revizuit regulat, aprobat de Comitetul de Conducere</li>
+        <li>Rapoarte de etapă (analiză, instalare, testare, instruire, suport) + Raport Final</li>
+        <li>Evaluare permanentă + evaluare finală + audit financiar extern</li>
+      </ul>
+    </div>
+  </div>
+  <h3 style="margin-top:22px;">Recomandare de metodologie de livrare (perspectivă PM)</h3>
+  <p class="lead">Dat fiind caracterul hibrid al soluției (componente COTS configurabile + dezvoltări custom pe 13 module, cu recepții cantitative/calitative stricte per fază), se recomandă un model <b>hibrid Waterfall–Agile</b>: faze contractuale mari (analiză → dezvoltare → securitate → implementare pe 5 valuri → testare → instruire) guvernate ca Waterfall pentru recepții/plăți, cu <b>sprint-uri Agile de 2 săptămâni în interiorul fazei de dezvoltare (L1–L13)</b> per modul, folosind un backlog organizat pe cele 13 module de mai sus și activități WBS de maxim 14 zile conform cerinței din caietul de sarcini.</p>
+</section>
+
+</main>
+
+<footer>
+  Document generat pe baza analizei Caietului de Sarcini (326 pagini) — ANS. Elaborat pentru uz intern de planificare de proiect (PM), fără valoare contractuală.
+</footer>
+
+</body>
+</html>
