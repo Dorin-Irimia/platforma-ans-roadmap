@@ -18,3 +18,11 @@ Structură de proiect (PM), arhitectură software, module funcționale, integră
 - Infrastructură țintă: Cloud Privat Guvernamental (Azure Stack Hub)
 
 Document elaborat pentru uz intern de planificare de proiect, fără valoare contractuală.
+
+## Demo — Scenariul de Demonstrație Obligatoriu (nou)
+
+Caietul de sarcini (Cap. 8) impune o demonstrație video obligatorie a 5 scenarii funcționale, ca și condiție de calificare a ofertei. Am pornit lucrul de aici:
+
+- **[Roadmap_Demo_Scenarii.html](./Roadmap_Demo_Scenarii.html)** — roadmap vizual: cele 5 scenarii, arhitectură tehnică, structură repo, plan de sprint-uri (8 săptămâni), scalare spre roadmap-ul PM complet.
+- **[docs/04-scenariu-demonstrativ.md](./docs/04-scenariu-demonstrativ.md)** — extras complet al cerințelor de demonstrat, punct cu punct.
+- **[demo-app/](./demo-app/)** — scaffold-ul codului (Node.js + React + PostgreSQL), organizat pe module: `iam`, `dms`, `bi`, `chatbot`, `lms` — câte unul per scenariu.
