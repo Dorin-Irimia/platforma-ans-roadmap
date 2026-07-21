@@ -1,0 +1,1564 @@
+// Schema IAM (Scenariul 4) — se extinde per sprint cu entitățile
+// fiecărui scenariu (Form/Request/WorkflowStep pentru DMS, etc.)
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider      = "prisma-client-js"
+  // "native" pentru dezvoltare locală în afara containerului + binarul explicit
+  // pentru node:20-alpine (musl, OpenSSL 3.x) folosit în docker-compose.
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+enum Role {
+  SUPER_ADMIN
+  ADMIN_INSTITUTIE
+  MODERATOR
+  EVALUATOR
+  AUTOR
+  CO_AUTOR
+  UTILIZATOR_STANDARD
+}
+
+// `id` este mereu id-ul contului corespunzător din Supabase Auth (auth.users.id) —
+// nicio valoare generată local; parola/sesiunea sunt gestionate integral de Supabase.
+model User {
+  id                String    @id
+  email             String    @unique
+  name              String?
+  role              Role      @default(UTILIZATOR_STANDARD)
+  isActive          Boolean   @default(true)
+  // Blocare temporară după N tentative eșuate — praguri configurabile din AuthPolicySettings.
+  failedLoginCount  Int       @default(0)
+  lockedUntil       DateTime?
+  // Setat la înregistrare pentru conturile care așteaptă aprobare manuală (isActive=false,
+  // non-bootstrap); golit quando un admin aprobă explicit contul (PATCH /users/:id/active).
+  // Permite regula automată "conturi în așteptare expirate" (AuthPolicySettings.pendingApprovalExpiryDays)
+  // să distingă un cont încă neaprobat de unul dezactivat manual după ce fusese deja activ.
+  pendingApprovalSince DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  groups              GroupMembership[]
+  auditLogs           AuditLog[]
+  comments            DocumentComment[]
+  caseEvents          WorkflowCaseEvent[]    @relation("CaseEventActor")
+  signedResponses     OfficialResponse[]     @relation("ResponseSignatures")
+  uploadedDocuments   Document[]
+  signaturePlacements SignaturePlacement[]
+  assignedRequests    DmsRequest[]           @relation("AssignedUserRequests")
+  savedReports        BiSavedReport[]
+  biAlertRules        BiAlertRule[]
+  submittedRequests   DmsRequest[]           @relation("PortalSubmitter")
+  dashboardWidgets    DashboardWidget[]
+  chatConversations   ChatConversation[]
+  lmsCourseCollaborations LmsCourseCollaborator[]
+  lmsEnrollments      LmsEnrollment[]
+  lmsCertificates     LmsCertificate[]
+  yearbookEditions    SportsYearbookEdition[]
+  emailOtpFactor      EmailOtpFactor?
+}
+
+// Al doilea canal 2FA (pct. 4.4.2), paralel cu TOTP-ul delegat la Supabase Auth MFA —
+// complet local, pentru că Supabase MFA nu are un tip de factor "email OTP".
+model EmailOtpFactor {
+  userId    String   @id
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  enabled   Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+// Cod efemer per încercare de login — generare/stocare(hash)/verificare reale;
+// doar "trimiterea" e simulată (nu există provider de email real în demo).
+model EmailOtpChallenge {
+  id         String    @id @default(uuid())
+  userId     String
+  codeHash   String
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([userId])
+}
+
+model Group {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+
+  members          GroupMembership[]
+  assignedRequests DmsRequest[]      @relation("AssignedGroupRequests")
+}
+
+model GroupMembership {
+  id      String @id @default(uuid())
+  userId  String
+  groupId String
+  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  group   Group  @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, groupId])
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action    String
+  resource  String?
+  metadata  Json?
+  ipAddress String?
+  // Populat automat din contextul cererii curente (shared/requestContext.ts, AsyncLocalStorage)
+  // — logAction() nu cere apelantului să-l paseze explicit, la fel ca ipAddress de mai sus.
+  userAgent String?
+  success   Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
+
+model Secret {
+  id             String   @id @default(uuid())
+  key            String   @unique
+  encryptedValue String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+// Rând singleton (id mereu "singleton") — politică de autentificare configurabilă din
+// panoul de administrare, în loc de constante hardcodate.
+model AuthPolicySettings {
+  id                String   @id @default("singleton")
+  sessionMinutes    Int      @default(60)
+  minPasswordLength Int      @default(8)
+  requireUppercase  Boolean  @default(true)
+  requireNumber     Boolean  @default(true)
+  maxFailedAttempts Int      @default(5)
+  lockoutMinutes    Int      @default(15)
+  // Regulă automată (evaluată leneș, la citirea listei de conturi): un cont încă în
+  // așteptare de aprobare după atâtea zile e semnalat, cu opțiune de respingere în bloc.
+  pendingApprovalExpiryDays Int @default(14)
+  updatedAt         DateTime @updatedAt
+}
+
+// Configurare AI comună — folosită de modulele Chatbot și LMS (nu doar unul din ele),
+// selectarea modelului implicit e o cerință explicită la Scenariul 5 (LMS). Cheia API
+// propriu-zisă (GROQ_API_KEY) rămâne în Secret Manager-ul existent, nu aici.
+model AiSettings {
+  id           String   @id @default("singleton")
+  defaultModel String   @default("llama-3.3-70b-versatile")
+  updatedAt    DateTime @updatedAt
+}
+
+// Dashboard configurabil — fiecare cont își aranjează propriile module (chenare) pe
+// „Panoul principal": cereri recente, rezumat cont, grafice/rapoarte BI, butoane-link
+// către alte site-uri, butoane complet personalizate (imagine încărcată + URL).
+// Aranjamentul (x/y/w/h) e per-widget, ca să poată fi mutat/redimensionat individual.
+enum DashboardWidgetType {
+  RECENT_REQUESTS
+  ACCOUNT_SUMMARY
+  CHART
+  SAVED_REPORT
+  LINK_BUTTON
+  CUSTOM_BUTTON
+  STATS
+  ACTIVITY_LOG
+  AUTOMATION_SUMMARY
+}
+
+model DashboardWidget {
+  id               String              @id @default(uuid())
+  userId           String
+  user             User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type             DashboardWidgetType
+  title            String?
+  config           Json?
+  imageStoragePath String? // doar CUSTOM_BUTTON — imaginea încărcată de utilizator
+  imageMimeType    String?
+  x                Int                 @default(0)
+  y                Int                 @default(0)
+  w                Int                 @default(4)
+  h                Int                 @default(3)
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+
+  @@index([userId])
+}
+
+// ============================================================
+// Modul DMS — Scenariul 1 (Portal / Registratură / Workflow)
+// ============================================================
+
+// Tipul de șablon — determină unde/cum e folosit: formular de cerere (public,
+// pe Portal), document intern (uz administrativ) sau document extern (ex. adeverințe,
+// răspunsuri oficiale generate către petent). Tipar preluat din editorul de șabloane URBIO.
+enum FormTemplateType {
+  REQUEST_FORM
+  INTERNAL_DOCUMENT
+  EXTERNAL_DOCUMENT
+}
+
+// Bibliotecă extinsă de tipuri de câmpuri, organizată pe categorii (Sistem, General,
+// Timp, Locație, Opțiuni, Aspect) — vezi FIELD_CATALOG din frontend pentru gruparea
+// vizuală și etichetele RO. Categoria "Sistem" leagă câmpul de motorul de workflow/
+// registratură (ex. numerotare automată) — configurarea lor efectivă se activează
+// complet când extindem Workflow Builder-ul; deocamdată sunt definite și configurabile.
+enum FieldType {
+  // Sistem
+  ACCOUNT
+  REGISTRATION
+  REPEATABLE_GROUP
+  NOTIFICATION_TEMPLATE
+  NOTIFICATION_RECIPIENTS
+  DYNAMIC_FORM_BUILDER
+  DYNAMIC_FORM_RENDER
+  ACCESS_DEFINITION
+  // General
+  SHORT_TEXT
+  SHORT_NUMBER
+  LONG_TEXT
+  EMAIL
+  FILE_UPLOAD_AI
+  CARD_EXTRACT_AI
+  FILE_UPLOAD
+  // Timp
+  DATE
+  DATETIME
+  TIME
+  SCHEDULE
+  // Locație
+  MAP_POINT
+  REGION
+  // Opțiuni
+  DROPDOWN
+  CHECKBOX
+  RADIO
+  NESTED_CHECKBOXES
+  MULTI_CHECKBOX
+  SURVEY
+  TOGGLE
+  STAR_RATING
+  SCALE
+  // Aspect
+  STATIC_TEXT
+  LINK
+  MEDIA
+}
+
+enum FormStatus {
+  DRAFT
+  PUBLISHED
+}
+
+enum RequestStatus {
+  NOU
+  IN_LUCRU
+  IN_ASTEPTARE
+  FINALIZAT
+  RESPINS
+}
+
+// Distinge seria de numerotare a unei cereri: INTRARE (depusă din Portal de un
+// cetățean/instituție externă) vs INTERN (generată de ANS însuși — emitere CIS,
+// aprobare transfer, omologare bază sportivă etc., via createInternalRequest()).
+// IESIRE există doar ca etichetă pe registrele folosite pentru numerotarea răspunsurilor.
+enum RegistryNumberKind {
+  INTRARE
+  INTERN
+  IESIRE
+}
+
+// Fiecare instituție ține de regulă mai multe registre paralele (general, pe direcții,
+// pe categorii de documente) — configurabile: nume, cod (folosit ca prefix, garantează
+// unicitatea între registre) și numărul de la care pornește seria. Contorul propriu-zis
+// e ținut anual în RegistryYearCounter (se resetează în fiecare an calendaristic).
+model NumberingRegistry {
+  id          String             @id @default(uuid())
+  name        String
+  // Prefix folosit la formarea numărului, ex. "INTERN", "" pt. un registru implicit.
+  // NU e @unique la nivel de DB: INTRARE și INTERN scriu în aceeași coloană unică
+  // (DmsRequest.registryNumber), deci codurile lor trebuie să nu se ciocnească între
+  // ele — verificat explicit în ruta de creare (registries.routes.ts). IESIRE scrie
+  // în altă coloană (OfficialResponse.outboundNumber, fără constrângere unică) și poate
+  // refolosi orice cod, inclusiv "", independent de celelalte serii.
+  code        String
+  kind        RegistryNumberKind
+  startNumber Int                @default(1)
+  isDefault   Boolean            @default(false) // registrul folosit automat pt. seria lui `kind` când nu se specifică altul
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  yearCounters      RegistryYearCounter[]
+  requests          DmsRequest[]
+  outboundTemplates ResponseTemplate[]
+
+  @@index([kind])
+}
+
+model RegistryYearCounter {
+  id         String            @id @default(uuid())
+  registryId String
+  registry   NumberingRegistry @relation(fields: [registryId], references: [id], onDelete: Cascade)
+  year       Int
+  lastNumber Int               @default(0)
+
+  @@unique([registryId, year])
+  @@index([registryId])
+}
+
+// Strategia de atribuire a nr. de ieșire pentru răspunsurile generate dintr-un șablon:
+// fie oglindește nr. de intrare/intern al cererii, fie extrage următorul număr dintr-un
+// registru configurat (implicit cel de ieșire marcat isDefault, sau altul ales explicit).
+enum OutboundNumberMode {
+  SAME_AS_ENTRY
+  FROM_REGISTRY
+}
+
+// ------------------------------------------------------------
+// Motor de workflow pe stări+tranziții (model URBIO Workflow Builder)
+// ------------------------------------------------------------
+
+// Categoria kanban a unei stări — determină coloana în care apare starea
+// în vizualizările de tip board și influențează semnificația culorii implicite.
+enum StateCategory {
+  TODO
+  IN_PROGRESS
+  DONE
+  ARCHIVED
+}
+
+// Vizibilitatea unui flux: privat (uz intern) sau public (vizibil/inițiabil din Portal).
+enum WorkflowVisibility {
+  PRIVATE
+  PUBLIC
+}
+
+// Secțiunea/domeniul din care face parte fluxul — folosit la organizarea listei de fluxuri.
+enum WorkflowSection {
+  COMPLAINTS
+  DOC_ISSUANCE
+  EVENTS
+  GENERAL
+  OFFICIAL_GAZETTE
+  PUBLIC_INFO
+  PUBLIC_CONSULTATION
+  REPORTS
+  SURVEYS
+  POLLS
+}
+
+enum DueDateUnit {
+  MINUTES
+  HOURS
+  BUSINESS_DAYS
+  MONTHS
+  YEARS
+}
+
+enum ReminderChannel {
+  PUSH
+  EMAIL
+}
+
+// Tipuri de validare ce pot fi atașate unei tranziții — rulează, în ordine, înainte
+// ca tranziția să fie efectiv aplicată; dacă oricare eșuează, tranziția e blocată.
+enum ValidationType {
+  VALIDATE_TEMPLATE // toate câmpurile obligatorii ale șablonului atașat sunt completate
+  VALIDATE_FIELD // o condiție specifică pe un câmp din formular
+  VALIDATE_UNIQUENESS // valoarea unui câmp trebuie să fie unică în platformă
+  MANUAL_CHECKLIST // bifă manuală de confirmare din partea utilizatorului care avansează cazul
+  VALIDATE_SIGNATURE // documentul de răspuns trebuie să fie deja semnat
+}
+
+// Acțiuni automate declanșate la aplicarea unei tranziții (rulează, în ordine, după validări).
+enum ActionType {
+  SEND_EMAIL
+  SEND_NOTIFICATION
+  GENERATE_DOCUMENT
+  ASSIGN_TO_USER
+  ASSIGN_TO_GROUP
+  SET_DUE_DATE
+  REQUEST_SIGNATURE
+  PUBLISH_TO_PORTAL
+  CREATE_CALENDAR_EVENT
+  ADD_TAG
+  LOCK_REQUEST
+  ARCHIVE_REQUEST
+  // Integrare reală cu Registrul Sportiv — o cerere care trece prin acest motor de
+  // workflow poate scrie efectiv pe o entitate de domeniu sportiv, nu doar pe DmsRequest.
+  ISSUE_CIS
+  ACTIVATE_FACILITY
+  GRANT_COACH_TITLE
+  APPROVE_TRANSFER
+}
+
+// Declanșatori evaluați la citire (nu există infrastructură de scheduler/cron în acest demo):
+// verificați ori de câte ori un caz e încărcat, nu pe un tick real de fundal.
+enum TriggerType {
+  RESPONSE_THRESHOLD // s-a atins un număr minim de răspunsuri/documente generate
+  DURATION_IN_STATE // au trecut cel puțin N unități de timp de când cazul e în starea curentă
+  DEADLINE_OVERDUE // termenul legal al cererii (DmsRequest.legalDeadline) a expirat deja
+}
+
+// Stare globală de workflow — nomenclator unic pe toată platforma (ca în URBIO: odată
+// creată starea "Aprobat", orice alt flux o poate reutiliza, dar numele rămâne unic global).
+model WorkflowState {
+  id          String        @id @default(uuid())
+  name        String        @unique
+  category    StateCategory @default(TODO)
+  color       String        @default("#64748B") // hex, implicit gri-albastru neutru
+  description String?
+  createdAt   DateTime      @default(now())
+
+  transitionsFrom WorkflowTransition[] @relation("TransitionFromState")
+  transitionsTo   WorkflowTransition[] @relation("TransitionToState")
+  cases           WorkflowCase[]
+  caseEventsFrom  WorkflowCaseEvent[]  @relation("CaseEventFromState")
+  caseEventsTo    WorkflowCaseEvent[]  @relation("CaseEventToState")
+}
+
+// Definiția unui flux de lucru (echivalentul URBIO al unui "Workflow" din Workflow Builder).
+model WorkflowDef {
+  id             String             @id @default(uuid())
+  icon           String             @default("Workflow")
+  name           String
+  description    String?
+  visibility     WorkflowVisibility @default(PRIVATE)
+  section        WorkflowSection    @default(GENERAL)
+  tags           String[]           @default([])
+  category       String // se potrivește cu DmsRequest.category / Form.category (compatibilitate cu Registratura)
+  dueDateQuantity Int?
+  dueDateUnit    DueDateUnit?
+  isActive       Boolean            @default(true)
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  reminders   WorkflowReminder[]
+  transitions WorkflowTransition[]
+  cases       WorkflowCase[]
+}
+
+// Memento configurat pentru termenul unui flux (ex. "cu 2 zile înainte, notificare push").
+model WorkflowReminder {
+  id            String          @id @default(uuid())
+  workflowDefId String
+  workflowDef   WorkflowDef     @relation(fields: [workflowDefId], references: [id], onDelete: Cascade)
+  channel       ReminderChannel
+  quantity      Int
+  unit          DueDateUnit
+
+  @@index([workflowDefId])
+}
+
+// Tranziție (muchie a grafului de stări) — de la o stare (sau START, dacă fromStateId
+// e null, pentru tranzițiile de inițiere a unui caz) la altă stare, cu comportament
+// automatizat atașat (șabloane obligatorii, validări, acțiuni, declanșatori).
+model WorkflowTransition {
+  id             String        @id @default(uuid())
+  workflowDefId  String
+  workflowDef    WorkflowDef   @relation(fields: [workflowDefId], references: [id], onDelete: Cascade)
+  name           String
+  fromStateId    String? // null = tranziție de start (creare caz)
+  fromState      WorkflowState? @relation("TransitionFromState", fields: [fromStateId], references: [id])
+  toStateId      String
+  toState        WorkflowState  @relation("TransitionToState", fields: [toStateId], references: [id])
+  requiresComment  Boolean     @default(false)
+  requiresApproval Boolean     @default(false)
+  notifySubmitter  Boolean     @default(true)
+  order          Int           @default(0)
+  createdAt      DateTime      @default(now())
+
+  templates   WorkflowTransitionTemplate[]
+  validations WorkflowValidation[]
+  actions     WorkflowAction[]
+  triggers    WorkflowTrigger[]
+  caseEvents  WorkflowCaseEvent[]
+
+  @@index([workflowDefId])
+}
+
+// Șablon (Form) atașat unei tranziții — ex. documentul ce trebuie generat/completat
+// pentru ca tranziția respectivă să poată fi aplicată.
+model WorkflowTransitionTemplate {
+  id           String             @id @default(uuid())
+  transitionId String
+  transition   WorkflowTransition @relation(fields: [transitionId], references: [id], onDelete: Cascade)
+  formId       String
+  form         Form               @relation(fields: [formId], references: [id])
+  required     Boolean            @default(true)
+
+  @@index([transitionId])
+}
+
+model WorkflowValidation {
+  id           String             @id @default(uuid())
+  transitionId String
+  transition   WorkflowTransition @relation(fields: [transitionId], references: [id], onDelete: Cascade)
+  type         ValidationType
+  config       Json? // ex. { fieldKey, operator, value } pentru VALIDATE_FIELD
+  order        Int                @default(0)
+
+  @@index([transitionId])
+}
+
+model WorkflowAction {
+  id           String             @id @default(uuid())
+  transitionId String
+  transition   WorkflowTransition @relation(fields: [transitionId], references: [id], onDelete: Cascade)
+  type         ActionType
+  config       Json? // ex. { templateId } pentru GENERATE_DOCUMENT, { groupId } pentru ASSIGN_TO_GROUP
+  order        Int                @default(0)
+
+  @@index([transitionId])
+}
+
+model WorkflowTrigger {
+  id           String             @id @default(uuid())
+  transitionId String
+  transition   WorkflowTransition @relation(fields: [transitionId], references: [id], onDelete: Cascade)
+  type         TriggerType
+  config       Json? // ex. { minResponses } sau { quantity, unit }
+
+  @@index([transitionId])
+}
+
+// Instanța unui flux, atașată unei cereri concrete — cazul își urmărește starea curentă
+// pe graful de stări (nu mai există noțiunea de "pas curent", ci de "stare curentă").
+model WorkflowCase {
+  id            String        @id @default(uuid())
+  requestId     String        @unique
+  request       DmsRequest    @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  workflowDefId String
+  workflowDef   WorkflowDef   @relation(fields: [workflowDefId], references: [id])
+  currentStateId String
+  currentState  WorkflowState @relation(fields: [currentStateId], references: [id])
+  enteredStateAt DateTime     @default(now())
+  // Termenul implicit al fluxului (WorkflowDef.dueDateQuantity/dueDateUnit), calculat o
+  // singură dată la inițierea cazului — distinct de DmsRequest.legalDeadline (termenul
+  // legal de registratură, Legea 544/2001), acesta e termenul intern de SLA al fluxului.
+  dueAt         DateTime?
+  createdAt     DateTime      @default(now())
+
+  events WorkflowCaseEvent[]
+}
+
+// Istoricul aplicării tranzițiilor pentru un caz — cine, când, de la ce stare la ce stare.
+model WorkflowCaseEvent {
+  id            String              @id @default(uuid())
+  caseId        String
+  case          WorkflowCase        @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  transitionId  String?
+  transition    WorkflowTransition? @relation(fields: [transitionId], references: [id])
+  fromStateId   String?
+  fromState     WorkflowState?      @relation("CaseEventFromState", fields: [fromStateId], references: [id])
+  toStateId     String
+  toState       WorkflowState       @relation("CaseEventToState", fields: [toStateId], references: [id])
+  performedById String?
+  performedBy   User?               @relation("CaseEventActor", fields: [performedById], references: [id])
+  comment       String?
+  createdAt     DateTime            @default(now())
+
+  @@index([caseId])
+}
+
+enum ResponseStatus {
+  DRAFT
+  SIGNED
+  SENT
+}
+
+// Șablon de document/formular creat prin editorul de șabloane (Smart Form Builder
+// din Portal, extins după modelul URBIO: Formular cerere / Document intern / extern).
+model Form {
+  id           String           @id @default(uuid())
+  icon         String           @default("FileText") // nume iconiță lucide-react, ales din editor (paritate cu WorkflowDef.icon)
+  name         String
+  description  String?
+  category     String // leagă șablonul de o definiție de workflow și de domeniul din registratură
+  templateType FormTemplateType @default(REQUEST_FORM)
+  title        String? // titlu afișat în document/formular (distinct de `name`, care e denumirea internă)
+  subtitle     String?
+  status       FormStatus       @default(DRAFT)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  sections FormSection[]
+  fields   FormField[] // câmpuri fără secțiune ("Alte cerințe")
+  requests DmsRequest[]
+  transitionTemplates WorkflowTransitionTemplate[]
+  nomenclatorLinks    FormNomenclatorLink[]
+}
+
+// Secțiune din zona "Formular" a șablonului — grupează câmpuri afișate cetățeanului/angajatului.
+model FormSection {
+  id     String @id @default(uuid())
+  formId String
+  form   Form   @relation(fields: [formId], references: [id], onDelete: Cascade)
+  name   String
+  order  Int    @default(0)
+
+  fields FormField[]
+}
+
+// Câmp de formular — bibliotecă extinsă de tipuri + setări consistente (titlu intern,
+// etichetă afișată, text sugestiv/ajutor, limite, valoare implicită, autocompletare AI)
+// + condiții de vizibilitate (toate trebuie satisfăcute pentru ca respectivul câmp să apară).
+model FormField {
+  id              String       @id @default(uuid())
+  formId          String
+  form            Form         @relation(fields: [formId], references: [id], onDelete: Cascade)
+  sectionId       String? // null => câmpul apare în "Alte cerințe"
+  section         FormSection? @relation(fields: [sectionId], references: [id], onDelete: SetNull)
+  key             String // nume variabilă (folosit în {{PLACEHOLDERS}} șabloane răspuns), ex: "cui"
+  internalTitle   String // "Titlu" — nume intern, vizibil doar administratorilor
+  description     String?
+  type            FieldType
+  required        Boolean      @default(false)
+  disabled        Boolean      @default(false)
+  readOnly        Boolean      @default(false)
+  label           String // "Etichetă" — textul afișat utilizatorului final
+  placeholder     String?
+  helpText        String?
+  textIndicator   String? // scurt indicator/hint afișat lângă câmp
+  minLength       Int?
+  maxLength       Int?
+  minValue        Float?
+  maxValue        Float?
+  defaultValue    String?
+  allowAiAutofill Boolean      @default(false)
+  config          Json? // setări specifice tipului (opțiuni listă, registru, scală etc. — vezi FIELD_CATALOG frontend)
+  conditions      Json? // array [{ field, operator, value }] — toate condițiile trebuie satisfăcute
+  order           Int          @default(0)
+  // Mapare explicită pe un atribut canonic al entității "Cerere" (NUME/EMAIL/CUI/TELEFON/ADRESA)
+  // — vezi CANONICAL_ROLES frontend. Pur descriptiv, nu schimbă cum `DmsRequest.data` e populat.
+  canonicalRole   String?
+}
+
+// ============================================================
+// Nomenclatoare — liste de referință reutilizabile (ex. "Persoane": nume/prenume/CNP/
+// data nașterii/oraș), atașabile unui șablon de formular. La completare, utilizatorul
+// alege o intrare din nomenclator și platforma precompletează automat câmpurile mapate.
+// ============================================================
+
+model Nomenclator {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  fields      Json // [{key, label, type: "TEXT"|"NUMBER"|"DATE"}]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  entries   NomenclatorEntry[]
+  formLinks FormNomenclatorLink[]
+}
+
+model NomenclatorEntry {
+  id            String      @id @default(uuid())
+  nomenclatorId String
+  nomenclator   Nomenclator @relation(fields: [nomenclatorId], references: [id], onDelete: Cascade)
+  values        Json // {fieldKey: value}
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@index([nomenclatorId])
+}
+
+// Legătura unui nomenclator la un formular + maparea câmp-nomenclator -> câmp-formular
+// (cheile din `fieldMapping` sunt Nomenclator.fields[].key, valorile sunt FormField.key).
+model FormNomenclatorLink {
+  id            String      @id @default(uuid())
+  formId        String
+  form          Form        @relation(fields: [formId], references: [id], onDelete: Cascade)
+  nomenclatorId String
+  nomenclator   Nomenclator @relation(fields: [nomenclatorId], references: [id], onDelete: Cascade)
+  fieldMapping  Json // {nomenclatorFieldKey: formFieldKey}
+  createdAt     DateTime    @default(now())
+
+  @@unique([formId, nomenclatorId])
+  @@index([nomenclatorId])
+  @@index([formId])
+}
+
+// Entitatea internă "Cerere" — rezultatul mapării unui formular public în Back-Office,
+// cu numerotare automată de registratură și termen legal de răspuns.
+model DmsRequest {
+  id             String             @id @default(uuid())
+  registryNumber String             @unique // format "[cod-]NR/AN" — unic indiferent de registru
+  numberKind     RegistryNumberKind @default(INTRARE)
+  registryId     String?
+  registry       NumberingRegistry? @relation(fields: [registryId], references: [id], onDelete: SetNull)
+  formId         String?
+  form           Form?         @relation(fields: [formId], references: [id], onDelete: SetNull)
+  // Contul autentificat care a depus cererea din Portal (dacă există) — permite
+  // cetățeanului să-și vadă propriile cereri/răspunsuri în contul din Portal
+  // (Scenariul 1, pct. 5 și 16), distinct de `assignedToId` (personalul ANS alocat).
+  submitterId    String?
+  submitter      User?         @relation("PortalSubmitter", fields: [submitterId], references: [id], onDelete: SetNull)
+  submitterName  String
+  submitterEmail String
+  data           Json // valorile câmpurilor, cheie = FormField.key
+  category       String
+  domain         String?
+  status         RequestStatus @default(NOU)
+  legalDeadline  DateTime?
+  suspendedUntil DateTime?
+  registeredAt   DateTime      @default(now())
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  // Câmpuri populate/gestionate de Acțiunile motorului de workflow (ASSIGN_TO_USER,
+  // ASSIGN_TO_GROUP, ADD_TAG, LOCK_REQUEST, ARCHIVE_REQUEST) — vezi caseEngine.ts.
+  assignedToId    String?
+  assignedTo      User?     @relation("AssignedUserRequests", fields: [assignedToId], references: [id], onDelete: SetNull)
+  assignedGroupId String?
+  assignedGroup   Group?    @relation("AssignedGroupRequests", fields: [assignedGroupId], references: [id], onDelete: SetNull)
+  tags            String[]  @default([])
+  locked          Boolean   @default(false)
+  archived        Boolean   @default(false)
+
+  comments         DocumentComment[]
+  workflowCase     WorkflowCase?
+  responses        OfficialResponse[]
+  documents        Document[]
+
+  @@index([registryId])
+}
+
+// Comentarii/mențiuni contextuale pe o cerere (colaborare, Scenariul 1 pct. 13).
+model DocumentComment {
+  id        String     @id @default(uuid())
+  requestId String
+  request   DmsRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User       @relation(fields: [authorId], references: [id])
+  body      String
+  mentions  String[] // emailuri menționate cu @
+  createdAt DateTime   @default(now())
+}
+
+// Template de răspuns oficial cu variabile ({{NUME}}, {{NR_INREGISTRARE}} etc.)
+model ResponseTemplate {
+  id        String   @id @default(uuid())
+  name      String
+  category  String
+  body      String
+  createdAt DateTime @default(now())
+
+  // Strategia de nr. de ieșire pentru răspunsurile generate din acest șablon — vezi
+  // OutboundNumberMode. Când FROM_REGISTRY și outboundRegistryId lipsește, se folosește
+  // registrul de kind IESIRE marcat isDefault (rezolvat dinamic la semnare).
+  outboundMode       OutboundNumberMode @default(FROM_REGISTRY)
+  outboundRegistryId String?
+  outboundRegistry   NumberingRegistry? @relation(fields: [outboundRegistryId], references: [id], onDelete: SetNull)
+
+  responses OfficialResponse[]
+
+  @@index([outboundRegistryId])
+}
+
+// Răspunsul generat pentru o cerere — flux aprobare + semnătură electronică (mock) + nr. de ieșire.
+model OfficialResponse {
+  id             String           @id @default(uuid())
+  requestId      String
+  request        DmsRequest       @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  templateId     String?
+  template       ResponseTemplate? @relation(fields: [templateId], references: [id])
+  body           String
+  status         ResponseStatus   @default(DRAFT)
+  outboundNumber String?
+  signedById     String?
+  signedBy       User?            @relation("ResponseSignatures", fields: [signedById], references: [id])
+  signedAt       DateTime?
+  createdAt      DateTime         @default(now())
+
+  document Document?
+}
+
+enum DocumentKind {
+  ATTACHMENT // fișier încărcat de petent/personal la o cerere
+  GENERATED_RESPONSE // PDF generat automat din template, înainte de semnare
+  SIGNED_RESPONSE // PDF cu semnătura electronică ștampilată la coordonatele alese
+}
+
+// Fișier fizic (stocat pe disc, cf. modelului DMS: depozit centralizat + indexare metadate).
+// Inspirat din soluții de piață (DocuWare, Regista.ro, eRegistratura.ro): fiecare document
+// e o entitate cu metadate proprii, nu doar un blob — permite indexare, audit, regăsire.
+model Document {
+  id           String       @id @default(uuid())
+  kind         DocumentKind
+  requestId    String?
+  request      DmsRequest?  @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  responseId   String?      @unique
+  response     OfficialResponse? @relation(fields: [responseId], references: [id], onDelete: Cascade)
+  filename     String
+  mimeType     String
+  sizeBytes    Int
+  storagePath  String // cale relativă pe volumul de stocare montat (vezi shared/storage.ts)
+  pageCount    Int? // populat pentru PDF-uri, folosit de preview-ul din frontend
+  // Text extras la creare (înainte de orice criptare la arhivare) — folosit exclusiv ca
+  // sursă de context naiv pentru chatbot (fundamentare pe Arhivă, vezi chatbot/archiveContext.ts).
+  // Nu retroactiv: documentele existente înainte de această modificare rămân NULL (fără
+  // backfill în acest demo, vezi scope cut în README).
+  extractedText String?
+  uploadedById String?
+  uploadedBy   User?        @relation(fields: [uploadedById], references: [id])
+  createdAt    DateTime     @default(now())
+
+  signaturePlacements SignaturePlacement[]
+
+  // Modul Arhivă — organizarea documentelor deja digitale în dosare (nu ștergem/mutăm
+  // fișierul fizic, doar îl asociem unui dosar de arhivă pentru indexare/căutare).
+  archiveFolderId String?
+  archiveFolder   ArchiveFolder? @relation(fields: [archiveFolderId], references: [id])
+  // Criptare la arhivare (cerință tehnică 4.5.9) — setat true când documentul e asociat
+  // unui dosar de arhivă (vezi archive.routes.ts); fișierul de pe disc devine ciphertext,
+  // decriptat doar la servire (documents.routes.ts), dacă acest flag e adevărat.
+  isEncrypted Boolean @default(false)
+
+  @@index([archiveFolderId])
+}
+
+// Poziția aleasă de utilizator pentru ștampila de semnătură electronică pe un document
+// (pattern preluat din DocuSign/PandaDoc: câmpul de semnătură se plasează prin click/drag
+// pe pagină, apoi se stochează ca poziție relativă — independentă de zoom/rezoluție).
+model SignaturePlacement {
+  id          String   @id @default(uuid())
+  documentId  String
+  document    Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  page        Int // pagină 0-indexată
+  xRatio      Float // 0..1 față de lățimea paginii
+  yRatio      Float // 0..1 față de înălțimea paginii (de sus în jos)
+  widthRatio  Float
+  heightRatio Float
+  createdById String
+  createdBy   User     @relation(fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+}
+
+// ============================================================
+// Modul BI — Scenariul 2 (Dashboard-uri analitice + NL2SQL)
+// ============================================================
+
+// Tipul de grafic sugerat/ales pentru un rezultat de interogare — determină componenta
+// de randare din frontend (recharts: BarChart/LineChart/PieChart) sau un simplu tabel.
+enum BiChartType {
+  TABLE
+  BAR
+  LINE
+  PIE
+  KPI
+  DONUT
+  RADAR
+  FUNNEL
+}
+
+// Raport salvat dintr-o interogare NL2SQL ad-hoc sau dintr-un widget de dashboard —
+// nu stochează un instantaneu static al datelor, ci "rețeta" interogării (intentKey +
+// parametrii extrași din întrebare), astfel încât la afișare se re-rulează interogarea
+// și utilizatorul vede mereu date curente (pattern de "rapoarte salvate" reutilizabile,
+// cerut explicit în Scenariul 2, pct. 3).
+model BiSavedReport {
+  id            String      @id @default(uuid())
+  title         String
+  questionText  String? // întrebarea originală în limbaj natural, dacă provine din NL2SQL
+  intentKey     String // cheia intenției din biblioteca NL2SQL (ex: "overdue_by_category")
+  params        Json? // parametrii extrași (an, lună, categorie etc.)
+  chartType     BiChartType @default(TABLE)
+  createdById   String
+  createdBy     User        @relation(fields: [createdById], references: [id])
+  createdAt     DateTime    @default(now())
+}
+
+enum AlertOperator {
+  GT
+  GTE
+  LT
+  LTE
+}
+
+// Regulă de alertă pe un indicator existent (metrics.ts) — evaluată leneș la deschiderea
+// paginii BI (nu există scheduler în acest demo). `metricKey` trebuie să corespundă unei
+// funcții exportate din metrics.ts care întoarce un număr (ex. "overdueCount", "backlogCount").
+model BiAlertRule {
+  id          String        @id @default(uuid())
+  label       String
+  metricKey   String
+  operator    AlertOperator
+  threshold   Int
+  createdById String
+  createdBy   User          @relation(fields: [createdById], references: [id])
+  createdAt   DateTime      @default(now())
+
+  @@index([createdById])
+}
+
+// ============================================================
+// Modul Chatbot — Scenariul 3 (Asistent Virtual AI)
+// ============================================================
+
+model ChatConversation {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Regulă automată: setat la trimiterea unui mesaj al cărui text conține unul din
+  // cuvintele-cheie configurate (ChatbotSettings.escalationKeywords) — semnalează
+  // conversația pentru intervenție umană, evaluat în timp real la scriere, nu la citire.
+  needsReview       Boolean @default(false)
+  needsReviewReason String?
+
+  messages ChatMessage[]
+
+  @@index([userId])
+}
+
+// Configurare automatizări Chatbot — cuvinte-cheie care declanșează needsReview mai sus.
+model ChatbotSettings {
+  id                 String   @id @default("singleton")
+  escalationKeywords String[] @default(["reclamație", "urgent", "avocat", "plângere", "instanță"])
+  updatedAt          DateTime @updatedAt
+}
+
+enum ChatRole {
+  USER
+  ASSISTANT
+}
+
+// TEXT = tastat, VOICE = transcris client-side prin Web Speech API (SpeechRecognition)
+// înainte de trimitere — nu există un pas separat de transcriere pe server.
+enum ChatInputMethod {
+  TEXT
+  VOICE
+}
+
+model ChatMessage {
+  id             String           @id @default(uuid())
+  conversationId String
+  conversation   ChatConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role           ChatRole
+  content        String
+  inputMethod    ChatInputMethod  @default(TEXT)
+  sourceDocIds   String[]         @default([]) // ChatKnowledgeDocument.id folosite ca sursă — transparența răspunsului AI
+  // Stare emoțională detectată (cerință explicită 4.5.11) — doar pe mesajele USER, un apel
+  // AI mic separat (chatbot/sentiment.ts), rezilient (implicit NEUTRU la eroare).
+  sentiment      String?
+  createdAt      DateTime         @default(now())
+
+  attachments ChatAttachment[]
+
+  @@index([conversationId])
+}
+
+model ChatAttachment {
+  id            String      @id @default(uuid())
+  messageId     String
+  message       ChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  filename      String
+  mimeType      String
+  storagePath   String
+  extractedText String? // pdf-parse/mammoth/text simplu; imaginile se stochează fără extracție (scope cut asumat)
+  createdAt     DateTime    @default(now())
+}
+
+// Șabloane de documente cu variabile {{VAR}} — administrate de personal, generate
+// automat prin conversație (pct. 4, 5, 9 din Scenariul 3).
+model ChatDocumentTemplate {
+  id                  String   @id @default(uuid())
+  name                String
+  category            String
+  body                String
+  variables           String[]
+  requiredAttachments String[] @default([]) // ex. ["Copie CI"] — pct. 10
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+// Registru reutilizabil de variabile (pct. 5) — șabloanele rămân legate doar prin
+// cheia String din `ChatDocumentTemplate.variables`, nicio schimbare la substituția {{KEY}}.
+model ChatVariable {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  label       String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// Bază de cunoștințe administrată de admin, disponibilizată AI-ului ca sursă de context
+// pentru răspunsurile din conversații (pct. 3).
+model ChatKnowledgeDocument {
+  id            String   @id @default(uuid())
+  uploadedById  String
+  filename      String
+  mimeType      String
+  storagePath   String
+  extractedText String?
+  createdAt     DateTime @default(now())
+}
+
+// ============================================================
+// Modul LMS — Scenariul 5 (platforma CNFPA)
+// ============================================================
+
+enum LmsCourseStatus {
+  DRAFT
+  PUBLISHED
+}
+
+model LmsCourse {
+  id          String          @id @default(uuid())
+  title       String
+  description String?
+  status      LmsCourseStatus @default(DRAFT)
+  authorId    String
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  lessons       LmsLesson[]
+  collaborators LmsCourseCollaborator[]
+  enrollments   LmsEnrollment[]
+  certificates  LmsCertificate[]
+  rubric        LmsRubric?
+}
+
+// Conținutul lecției e o listă ordonată de blocuri (TEXT/IMAGE/VIDEO/QUIZ) stocată ca
+// JSON — un bloc QUIZ înglobează întrebările, răspunsurile corecte și scorul minim
+// necesar pentru deblocarea lecției următoare ("Barieră Logică", pct. 15).
+model LmsLesson {
+  id        String   @id @default(uuid())
+  courseId  String
+  course    LmsCourse @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  title     String
+  order     Int      @default(0)
+  content   Json     @default("[]")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  comments LmsComment[]
+  attempts LmsQuizAttempt[]
+
+  @@index([courseId])
+}
+
+enum LmsCourseRole {
+  AUTHOR
+  COAUTHOR
+}
+
+// Rol la nivel de curs, decuplat deliberat de rolul global IAM (`Role`) — un utilizator
+// poate fi Co-autor pe un curs și doar Cursant pe altul.
+model LmsCourseCollaborator {
+  id         String        @id @default(uuid())
+  courseId   String
+  course     LmsCourse     @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  courseRole LmsCourseRole
+  createdAt  DateTime      @default(now())
+
+  @@unique([courseId, userId])
+}
+
+// `blockId` e o cheie în `LmsLesson.content` (JSON), fără FK — dacă blocul e șters/
+// reordonat, comentariul poate rămâne orfan (acceptabil pt. demo, documentat explicit).
+model LmsComment {
+  id        String    @id @default(uuid())
+  lessonId  String
+  lesson    LmsLesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  blockId   String
+  authorId  String
+  body      String
+  resolved  Boolean   @default(false)
+  createdAt DateTime  @default(now())
+
+  @@index([lessonId])
+}
+
+model LmsRubric {
+  id       String    @id @default(uuid())
+  courseId String    @unique
+  course   LmsCourse @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  criteria Json      @default("[]") // [{label, maxScore}]
+}
+
+model LmsRubricScore {
+  id          String   @id @default(uuid())
+  lessonId    String
+  evaluatorId String
+  scores      Json // [{label, score}]
+  createdAt   DateTime @default(now())
+
+  @@index([lessonId])
+}
+
+// Progresul cursantului — un singur rând per (curs, utilizator), citit/actualizat la
+// fiecare navigare de lecție, pentru reluarea cross-device (pct. 14).
+model LmsEnrollment {
+  id              String    @id @default(uuid())
+  courseId        String
+  course          LmsCourse @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  currentLessonId String?
+  progressPercent Int       @default(0)
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([courseId, userId])
+}
+
+// Certificat de absolvire (cerință CNFPA 4.5.8) — emis automat, o singură dată, când
+// LmsEnrollment.progressPercent atinge 100% (vezi enrollment.routes.ts).
+model LmsCertificate {
+  id                String    @id @default(uuid())
+  courseId          String
+  course            LmsCourse @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  userId            String
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  certificateNumber String    @unique
+  issuedAt          DateTime  @default(now())
+  storagePath       String
+
+  @@unique([courseId, userId])
+  @@index([userId])
+}
+
+// Scorul se calculează mereu server-side din răspunsurile corecte înglobate în blocul
+// QUIZ al lecției, niciodată trimis direct de client. Verificarea Barierei Logice
+// interoghează mereu *ultima* tentativă (orderBy createdAt desc, take 1), nu `some()`
+// peste toate tentativele — altfel o primă încercare picată urmată de una promovată
+// ar rămâne ambiguă.
+model LmsQuizAttempt {
+  id        String    @id @default(uuid())
+  userId    String
+  lessonId  String
+  lesson    LmsLesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  answers   Json
+  score     Int
+  passed    Boolean
+  createdAt DateTime  @default(now())
+
+  @@index([lessonId, userId])
+}
+
+// Intenții personalizabile pentru asistentul de lecție (pct. 4) — ecran real de
+// creare/editare, nu doar un JSON de configurare.
+model LmsIntent {
+  id             String   @id @default(uuid())
+  courseId       String
+  name           String
+  triggerPhrases String[]
+  responseMode   String // "CANNED" | "AI"
+  cannedResponse String?
+  createdAt      DateTime @default(now())
+
+  @@index([courseId])
+}
+
+// Configurare asistent (singleton) — limbă/ton (pct. 2), glosar de terminologie
+// specifică domeniului (pct. 3), pași de fallback/"flux conversațional" folosiți când
+// niciun intent nu se potrivește (pct. 5).
+model LmsAssistantSettings {
+  id            String   @id @default("singleton")
+  language      String   @default("ro")
+  tone          String   @default("prietenos")
+  domainTerms   String[] @default([])
+  fallbackSteps Json     @default("[]") // [{order, prompt}]
+  // Regulă automată: o înscriere fără progres nou (LmsEnrollment.updatedAt) de atâtea
+  // zile e semnalată drept "stagnantă" în lista de cursanți a instructorului.
+  stalledAfterDays Int   @default(14)
+  updatedAt     DateTime @updatedAt
+}
+
+// Materiale pentru "adaptarea" asistentului LMS (pct. 3) — textul extras din aceste
+// fișiere e injectat ca sursă de context reală în promptul de sistem (nu antrenează
+// un model separat; nu există infrastructură ML pentru asta în acest mediu demo),
+// urmând exact tiparul deja folosit de `ChatKnowledgeDocument` pentru Chatbot.
+model LmsAssistantResource {
+  id            String   @id @default(uuid())
+  filename      String
+  mimeType      String
+  storagePath   String
+  extractedText String?
+  createdAt     DateTime @default(now())
+}
+
+// ============================================================
+// Modul Registrul Sportiv — Federații/Cluburi (4.5.3), Sportivi/Antrenori (4.5.4),
+// Baze Sportive (4.5.5). CIS/transferuri/omologări adjudecate curg prin motorul de
+// Workflow existent (DmsRequest + noile ActionType ISSUE_CIS/ACTIVATE_FACILITY/
+// GRANT_COACH_TITLE/APPROVE_TRANSFER) — vezi caseEngine.ts.
+// ============================================================
+
+// Configurare automatizări Registru Sportiv — vezi SportsClub.duesMarkedOverdueAt.
+model SportsRegistrySettings {
+  id                  String   @id @default("singleton")
+  duesGracePeriodDays Int      @default(30)
+  updatedAt           DateTime @updatedAt
+}
+
+enum SportsOrgType {
+  NATIONAL_FEDERATION
+  COUNTY_ASSOCIATION
+  PROFESSIONAL_LEAGUE
+}
+
+enum SportsOrgStatus {
+  ACTIVE
+  SUSPENDED
+  DISSOLVED
+  UNDER_INVESTIGATION
+}
+
+model SportsFederation {
+  id             String          @id @default(uuid())
+  name           String
+  disciplineType String
+  orgType        SportsOrgType   @default(NATIONAL_FEDERATION)
+  county         String? // doar pt. COUNTY_ASSOCIATION — max o asociație/ramură/județ, validat la nivel de rută
+  cif            String?
+  address        String?
+  status         SportsOrgStatus @default(ACTIVE)
+  foundedAt      DateTime?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  clubs     SportsClub[]
+  coaches   Coach[]
+  calendars CompetitionCalendarVersion[]
+}
+
+// Calendar competițional versionat (cerință explicită 4.5.3) — fiecare publicare nouă
+// e o versiune imuabilă, nu un update in-place.
+model CompetitionCalendarVersion {
+  id           String           @id @default(uuid())
+  federationId String
+  federation   SportsFederation @relation(fields: [federationId], references: [id], onDelete: Cascade)
+  season       String
+  version      Int
+  events       Json // [{name, date, location}]
+  publishedAt  DateTime         @default(now())
+
+  @@index([federationId])
+}
+
+model SportsClub {
+  id           String          @id @default(uuid())
+  name         String
+  clubType     String // "MONOSPORT" | "POLISPORT"
+  federationId String
+  federation   SportsFederation @relation(fields: [federationId], references: [id])
+  address      String?
+  county       String? // necesar pt. clasamentele pe județe din Anuarul Sportului (4.5.6)
+  cif          String?
+  status       SportsOrgStatus @default(ACTIVE)
+  duesUpToDate Boolean         @default(true) // blochează accesul/participarea la neplată
+  // Setat quando duesUpToDate trece pe false; golit la loc-plată. Permite regulii automate
+  // (SportsRegistrySettings.duesGracePeriodDays) să suspende clubul după perioada de grație,
+  // evaluată leneș la deschiderea listei/detaliului de club.
+  duesMarkedOverdueAt DateTime?
+  foundedAt    DateTime?
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  athletes Athlete[]
+  coaches  Coach[]
+
+  @@index([federationId])
+}
+
+// Log generic de istoric (schimbare sediu/denumire, dezactivare bază sportivă) —
+// reutilizat pentru FEDERATION/CLUB/FACILITY în loc de 3 tabele aproape identice.
+// `isMajorChange` acoperă cerința explicită "actualizări minore vs. majore" (4.5.5).
+model OrgHistoryEntry {
+  id            String   @id @default(uuid())
+  entityType    String // "FEDERATION" | "CLUB" | "FACILITY"
+  entityId      String
+  field         String
+  oldValue      String?
+  newValue      String?
+  isMajorChange Boolean  @default(false)
+  changedAt     DateTime @default(now())
+
+  @@index([entityType, entityId])
+}
+
+enum CisEntityType {
+  FEDERATION
+  CLUB
+}
+
+enum CisStatus {
+  ISSUED
+  SUSPENDED
+  REVOKED
+}
+
+// Direcțiile Județene pentru Sport pot emite CIS pentru structuri fără personalitate juridică.
+enum IssuingAuthority {
+  ANS
+  DJST
+}
+
+model SportsIdentityCertificate {
+  id                String           @id @default(uuid())
+  entityType        CisEntityType
+  entityId          String
+  certificateNumber String           @unique
+  status            CisStatus        @default(ISSUED)
+  issuingAuthority  IssuingAuthority @default(ANS)
+  issuedAt          DateTime         @default(now())
+  sourceRequestId   String? // DmsRequest care a declanșat emiterea, via acțiunea ISSUE_CIS
+
+  @@index([entityType, entityId])
+}
+
+enum AthleteStatus {
+  ACTIVE
+  TRANSFERRED
+  WITHDRAWN
+}
+
+model Athlete {
+  id                   String        @id @default(uuid())
+  cnp                  String        @unique
+  firstName            String
+  lastName             String
+  birthDate            DateTime?
+  clubId               String?
+  club                 SportsClub?   @relation(fields: [clubId], references: [id])
+  userId               String? // legătură opțională la un cont IAM ("cont public sportiv")
+  medicalVisaExpiresAt DateTime?
+  status               AthleteStatus @default(ACTIVE)
+  gdprErasedAt         DateTime? // dacă setat, cnp/nume sunt deja anonimizate (nu ștergere fizică)
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+
+  results   AthleteCompetitionResult[]
+  transfers AthleteTransfer[]         @relation("AthleteTransfers")
+
+  @@index([clubId])
+}
+
+model AthleteCompetitionResult {
+  id              String   @id @default(uuid())
+  athleteId       String
+  athlete         Athlete  @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+  competitionName String
+  date            DateTime
+  result          String
+  medal           String?
+
+  @@index([athleteId])
+}
+
+enum TransferType {
+  PERMANENT
+  TEMPORARY
+}
+
+enum TransferStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model AthleteTransfer {
+  id              String         @id @default(uuid())
+  athleteId       String
+  athlete         Athlete        @relation("AthleteTransfers", fields: [athleteId], references: [id], onDelete: Cascade)
+  fromClubId      String?
+  toClubId        String
+  transferType    TransferType
+  status          TransferStatus @default(PENDING)
+  sourceRequestId String? // DmsRequest care a declanșat aprobarea, via acțiunea APPROVE_TRANSFER
+  createdAt       DateTime       @default(now())
+
+  @@index([athleteId])
+  @@index([fromClubId])
+  @@index([toClubId])
+}
+
+model Coach {
+  id                 String            @id @default(uuid())
+  cnp                String            @unique
+  firstName          String
+  lastName           String
+  certificationLevel String?
+  clubId             String?
+  club               SportsClub?       @relation(fields: [clubId], references: [id])
+  federationId       String?
+  federation         SportsFederation? @relation(fields: [federationId], references: [id])
+  facilityId         String? // asociere cu o bază sportivă (cerință 4.5.4)
+  isEmerit           Boolean           @default(false)
+  gdprErasedAt       DateTime?
+  createdAt          DateTime          @default(now())
+
+  certifications CoachCertification[]
+
+  @@index([clubId])
+  @@index([federationId])
+}
+
+model CoachCertification {
+  id       String   @id @default(uuid())
+  coachId  String
+  coach    Coach    @relation(fields: [coachId], references: [id], onDelete: Cascade)
+  title    String
+  issuedAt DateTime @default(now())
+
+  @@index([coachId])
+}
+
+enum FacilityCategory {
+  B1
+  B2
+  B3
+  B4
+  B5
+  B6
+  B7
+  B8
+  B9
+}
+
+enum FacilityStatus {
+  ACTIVE
+  INACTIVE
+  DEMOLISHED
+}
+
+model SportsFacility {
+  id        String           @id @default(uuid())
+  name      String
+  category  FacilityCategory
+  county    String
+  address   String?
+  status    FacilityStatus   @default(ACTIVE) // fără ștergere fizică — doar tranziții de status
+  ownerType String?
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  units FacilityUnit[]
+}
+
+model FacilityUnit {
+  id         String         @id @default(uuid())
+  facilityId String
+  facility   SportsFacility @relation(fields: [facilityId], references: [id], onDelete: Cascade)
+  name       String
+  unitType   String // "INDOOR_HALL" | "POOL" | "RINK" | "VELODROME" | "STADIUM" | "TRACK" | "OTHER"
+  capacity   Int?
+
+  @@index([facilityId])
+}
+
+// ============================================================
+// Modul Anuarul Sportului (4.5.6) — publicație oficială anuală, generată exclusiv din
+// date validate (fără calcul manual), cu recalculare la modificarea surselor. Fiecare
+// generare produce o versiune nouă, imuabilă odată OFICIAL — istoricul se păstrează.
+// ============================================================
+
+enum YearbookStatus {
+  PROVIZORIU
+  VALIDAT
+  OFICIAL
+}
+
+model SportsYearbookEdition {
+  id                  String         @id @default(uuid())
+  year                Int
+  version             Int
+  status              YearbookStatus @default(PROVIZORIU)
+  snapshot            Json // clasamente calculate la generare: federații/cluburi-județe/sportivi/unități/vârstă
+  missingDataWarnings Json           @default("[]") // [{entity, id, field}] — semnalare automată date lipsă
+  generatedAt         DateTime       @default(now())
+  validatedAt         DateTime?
+  publishedAt         DateTime?
+  generatedById       String
+  generatedBy         User           @relation(fields: [generatedById], references: [id])
+
+  @@unique([year, version])
+  @@index([generatedById])
+}
+
+// ============================================================
+// Modul Galeria Marilor Sportivi (4.5.7) — catalog artefacte + bilete cu cod QR.
+// Fără tur virtual/ghid audio/digitizare 3D (scope cut asumat explicit).
+// ============================================================
+
+// Capacitate maximă per interval orar + preț unitar — configurabile (cerință explicită
+// 4.5.7 "capacitate maximă configurabilă"), nu hardcodate.
+model MuseumSettings {
+  id                 String   @id @default("singleton")
+  maxCapacityPerSlot Int      @default(30)
+  ticketPriceRon     Int      @default(20)
+  // Regulă automată: un bilet necheck-in-uit la atâtea minute după începutul intervalului
+  // e marcat noShow și locul e eliberat pentru rezervări noi (evaluat leneș, la o rezervare nouă).
+  noShowGraceMinutes Int      @default(30)
+  updatedAt          DateTime @updatedAt
+}
+
+model MuseumArtifact {
+  id               String   @id @default(uuid())
+  name             String
+  description      String?
+  category         String
+  isFragile        Boolean  @default(false)
+  photoStoragePath String?
+  photoMimeType    String?
+  createdAt        DateTime @default(now())
+}
+
+model MuseumVisit {
+  id           String    @id @default(uuid())
+  visitorName  String
+  visitorEmail String
+  ticketCode   String    @unique
+  visitDate    DateTime
+  timeSlot     String // ex. "10:00-11:00"
+  peopleCount  Int
+  priceTotal   Int // RON, calculat automat din peopleCount * preț unitar configurabil
+  checkedInAt  DateTime?
+  noShow       Boolean   @default(false)
+  createdAt    DateTime  @default(now())
+
+  @@index([visitDate, timeSlot])
+}
+
+// ============================================================
+// Modul Arhivă (4.5.9) — organizare/indexare/căutare pe documente deja digitale
+// (extinde Document din DMS). Fără OCR/ICR real pe scanări fizice (scope cut asumat).
+// ============================================================
+
+// Configurare automatizări Arhivă — vezi ArchiveFolder mai jos (regulă evaluată leneș
+// la listarea dosarelor: un dosar neschimbat de etapă de atâtea zile e semnalat "stagnant").
+model ArchiveSettings {
+  id               String   @id @default("singleton")
+  stalledAfterDays Int      @default(60)
+  updatedAt        DateTime @updatedAt
+}
+
+enum ArchiveFolderStage {
+  INTAKE
+  GROUPED
+  BOUND
+  INVENTORIED
+  DIGITIZED
+  INDEXED
+  ARCHIVED
+}
+
+model ArchiveFolder {
+  id          String             @id @default(uuid())
+  name        String
+  stage       ArchiveFolderStage @default(INTAKE)
+  indexFields Json               @default("[]") // max 5 perechi {label,value}, validat la nivel de rută
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  documents Document[]
+}

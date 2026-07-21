@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&display=swap">
+<style>
+  .wfe * { box-sizing: border-box; }
+  .wfe input, .wfe select, .wfe textarea { font-family: 'Plus Jakarta Sans', sans-serif; }
+  .wfe input:focus, .wfe select:focus, .wfe textarea:focus { border-color: #FF6B1A !important; background: #FFF1E8 !important; outline: none; }
+</style>
+</helmet>
+<div class="wfe" style="font-family:'Plus Jakarta Sans',sans-serif;color:#0E1116;">{{ tree }}</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = {
+    openTr: "t1",
+    def: { icon: "💶", name: "Finanțare cluburi sportive", category: "cis", visibility: "PUBLIC", section: "GENERAL", dueQty: 30, dueUnit: "BUSINESS_DAYS", description: "Flux public pentru cererile de finanțare nerambursabilă a structurilor sportive.", tags: "publice, urgent", active: true, reminders: [{ channel: "EMAIL", qty: 5, unit: "BUSINESS_DAYS" }] },
+    states: [
+      { id: "s1", name: "Înregistrat", category: "TODO", color: "#0369A1" },
+      { id: "s2", name: "În verificare", category: "IN_PROGRESS", color: "#7C3AED" },
+      { id: "s3", name: "La clarificări", category: "IN_PROGRESS", color: "#E0A52C" },
+      { id: "s4", name: "Aprobat", category: "DONE", color: "#2F9E6F" },
+      { id: "s5", name: "Respins", category: "DONE", color: "#E0432C" },
+      { id: "s6", name: "Arhivat", category: "ARCHIVED", color: "#6A6F78" },
+    ],
+    transitions: [
+      { id: "t1", name: "Înregistrează cererea", from: null, to: "s1", requiresComment: false, requiresApproval: false, notify: true, templates: ["f1"], validations: [], actions: [{ type: "ASSIGN_TO_GROUP", config: { groupId: "g1" } }, { type: "SET_DUE_DATE", config: { qty: 30, unit: "BUSINESS_DAYS" } }], triggers: [] },
+      { id: "t2", name: "Trimite spre verificare", from: "s1", to: "s2", requiresComment: false, requiresApproval: false, notify: true, templates: [], validations: [{ type: "VALIDATE_FIELD", config: { fieldKey: "cui", op: "not_equals", value: "" } }], actions: [{ type: "ASSIGN_TO_USER", config: { userId: "u2" } }], triggers: [] },
+      { id: "t3", name: "Aprobă și generează răspuns", from: "s2", to: "s4", requiresComment: true, requiresApproval: true, notify: true, templates: ["f2"], validations: [{ type: "VALIDATE_TEMPLATE", config: {} }, { type: "MANUAL_CHECKLIST", config: { label: "Am verificat bugetul" } }], actions: [{ type: "GENERATE_DOCUMENT", config: { templateId: "f2" } }, { type: "SEND_EMAIL", config: { message: "Cererea a fost aprobată." } }], triggers: [] },
+      { id: "t4", name: "Solicită clarificări", from: "s2", to: "s3", requiresComment: true, requiresApproval: false, notify: true, templates: [], validations: [], actions: [{ type: "SEND_NOTIFICATION", config: { message: "Sunt necesare clarificări." } }], triggers: [] },
+      { id: "t5", name: "Respinge cererea", from: "s2", to: "s5", requiresComment: true, requiresApproval: true, notify: true, templates: [], validations: [], actions: [{ type: "ARCHIVE_REQUEST", config: {} }], triggers: [] },
+      { id: "t6", name: "Reia verificarea", from: "s3", to: "s2", requiresComment: false, requiresApproval: false, notify: false, templates: [], validations: [], actions: [], triggers: [] },
+    ],
+  };
+
+  VIS = { PRIVATE: "Privat (uz intern)", PUBLIC: "Public (Portal)" };
+  SECTION = { GENERAL: "General", COMPLAINTS: "Sesizări", DOC_ISSUANCE: "Emitere documente", EVENTS: "Evenimente", PUBLIC_INFO: "Informații publice", REPORTS: "Rapoarte" };
+  UNIT = { MINUTES: "minute", HOURS: "ore", BUSINESS_DAYS: "zile lucrătoare", MONTHS: "luni", YEARS: "ani" };
+  CHAN = { PUSH: "Notificare push", EMAIL: "Email" };
+  CAT = { TODO: "De făcut", IN_PROGRESS: "În progres", DONE: "Finalizat", ARCHIVED: "Arhivat" };
+  CAT_COLOR = { TODO: "#0369A1", IN_PROGRESS: "#7C3AED", DONE: "#2F9E6F", ARCHIVED: "#6A6F78" };
+  VALID = { VALIDATE_TEMPLATE: "Șablon obligatoriu generat", VALIDATE_FIELD: "Condiție pe un câmp", VALIDATE_UNIQUENESS: "Unicitate valoare câmp", MANUAL_CHECKLIST: "Bifă de confirmare manuală", VALIDATE_SIGNATURE: "Document semnat electronic" };
+  ACTION = { SEND_EMAIL: "Trimite email", SEND_NOTIFICATION: "Trimite notificare", GENERATE_DOCUMENT: "Generează document", ASSIGN_TO_USER: "Alocă unui utilizator", ASSIGN_TO_GROUP: "Alocă unui grup", SET_DUE_DATE: "Setează termen", REQUEST_SIGNATURE: "Solicită semnătură", PUBLISH_TO_PORTAL: "Publică pe Portal", ADD_TAG: "Adaugă etichetă", ARCHIVE_REQUEST: "Arhivează cererea" };
+  TRIG = { RESPONSE_THRESHOLD: "Prag de răspunsuri", DURATION_IN_STATE: "Durată în stare" };
+  ICONS = ["💶", "🏅", "📅", "⚠️", "📁", "🧾", "🔔", "🗳️", "📊", "🔒", "✅", "🏛️"];
+  FORMS = [{ id: "f1", name: "Cerere finanțare", type: "Formular cerere" }, { id: "f2", name: "Adeverință finanțare aprobată", type: "Document extern" }, { id: "f3", name: "Notă internă repartizare", type: "Document intern" }];
+  USERS = [{ id: "u1", name: "Andrei Popescu" }, { id: "u2", name: "Mihai Radu" }, { id: "u3", name: "Cristina Nagy" }];
+  GROUPS = [{ id: "g1", name: "Registratură" }, { id: "g2", name: "Evaluatori finanțare" }];
+
+  update(mut) { const s = JSON.parse(JSON.stringify(this.state)); mut(s); this.setState(s); }
+  setDef(k, v) { this.update((s) => { s.def[k] = v; }); }
+  addState(draft) { this.update((s) => { s.states.push({ id: "s" + Date.now(), ...draft }); }); }
+  removeState(id) { this.update((s) => { s.states = s.states.filter((x) => x.id !== id); }); }
+  patchTr(id, p) { this.update((s) => { const t = s.transitions.find((x) => x.id === id); Object.assign(t, p); }); }
+  addTr() { const id = "t" + Date.now(); this.update((s) => { s.transitions.push({ id, name: "", from: null, to: s.states[0] ? s.states[0].id : "", requiresComment: false, requiresApproval: false, notify: true, templates: [], validations: [], actions: [], triggers: [] }); }); this.setState({ openTr: id }); }
+  removeTr(id) { this.update((s) => { s.transitions = s.transitions.filter((x) => x.id !== id); }); }
+  addSub(id, kind, item) { this.update((s) => { s.transitions.find((x) => x.id === id)[kind].push(item); }); }
+  patchSub(id, kind, i, p) { this.update((s) => { Object.assign(s.transitions.find((x) => x.id === id)[kind][i], p); }); }
+  removeSub(id, kind, i) { this.update((s) => { s.transitions.find((x) => x.id === id)[kind].splice(i, 1); }); }
+
+  renderVals() {
+    const h = React.createElement, self = this, D = this.state.def, ST = this.state.states, TR = this.state.transitions;
+    const C = { brand: "#FF6B1A", ink: "#0E1116", ink2: "#3C4149", ink3: "#6A6F78", line: "#E8E9EC", line2: "#F2F3F5", bg: "#FBFAF8", card: "#fff", danger: "#E0432C", dangerTint: "#FDECEA", brandTint: "#FFF1E8" };
+    const inp = { width: "100%", border: "1.5px solid " + C.line, borderRadius: 10, padding: "9px 11px", fontSize: 13.5, color: C.ink, background: C.bg };
+    const lbl = (t) => h("div", { style: { fontSize: 11.5, fontWeight: 600, color: C.ink3, textTransform: "uppercase", letterSpacing: 0.3, marginBottom: 6 } }, t);
+    const field = (v, on, props) => h("input", { value: v, onChange: (e) => on(e.target.value), style: inp, ...(props || {}) });
+    const sel = (v, on, opts, props) => h("select", { value: v, onChange: (e) => on(e.target.value), style: inp, ...(props || {}) }, ...opts.map((o) => h("option", { key: o[0], value: o[0] }, o[1])));
+    const card = (children, ex) => h("div", { style: { background: C.card, border: "1px solid " + C.line, borderRadius: 16, boxShadow: "0 1px 4px rgba(14,17,22,0.06)", padding: 20, ...(ex || {}) } }, children);
+    const secTitle = (t) => h("div", { style: { fontSize: 12, fontWeight: 700, letterSpacing: 1.4, textTransform: "uppercase", color: C.ink3, marginBottom: 14 } }, t);
+    const chk = (label, val, on) => h("label", { style: { display: "flex", gap: 6, alignItems: "center", fontSize: 13, color: C.ink2 } }, h("input", { type: "checkbox", checked: val, onChange: (e) => on(e.target.checked) }), label);
+    const btn = (t, on, kind) => { const base = { fontFamily: "'Plus Jakarta Sans',sans-serif", fontWeight: 700, fontSize: 12.5, border: "none", borderRadius: 10, padding: "8px 14px", cursor: "pointer" }; const st = { primary: { background: C.brand, color: "#fff", boxShadow: "0 4px 12px rgba(255,107,26,0.28)" }, ghost: { background: C.line2, color: C.ink2 }, danger: { background: C.dangerTint, color: C.danger } }; return h("button", { onClick: on, style: { ...base, ...(st[kind] || st.ghost) } }, t); };
+    const stName = (id) => id === null ? "START" : (ST.find((s) => s.id === id) || {}).name || "?";
+    const stColor = (id) => id === null ? C.brand : (ST.find((s) => s.id === id) || {}).color || C.ink3;
+    const optsFromMap = (m) => Object.entries(m);
+    const stateOpts = ST.map((s) => [s.id, s.name]);
+
+    // ---- Detalii ----
+    const detalii = card([
+      secTitle("Detalii flux"),
+      h("div", { style: { display: "grid", gridTemplateColumns: "auto 1fr 1fr", gap: 14, marginBottom: 14, alignItems: "start" } },
+        h("div", null, lbl("Iconiță"), h("div", { style: { display: "flex", gap: 5, flexWrap: "wrap", maxWidth: 160 } }, ...this.ICONS.map((ic) => h("button", { key: ic, onClick: () => self.setDef("icon", ic), style: { width: 32, height: 32, borderRadius: 8, border: "1.5px solid " + (D.icon === ic ? C.brand : C.line), background: D.icon === ic ? C.brandTint : "#fff", cursor: "pointer", fontSize: 15 } }, ic)))),
+        h("div", null, lbl("Nume flux"), field(D.name, (v) => self.setDef("name", v))),
+        h("div", null, lbl("Categorie"), field(D.category, (v) => self.setDef("category", v)))),
+      h("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14, marginBottom: 14 } },
+        h("div", null, lbl("Vizibilitate"), sel(D.visibility, (v) => self.setDef("visibility", v), optsFromMap(this.VIS))),
+        h("div", null, lbl("Secțiune"), sel(D.section, (v) => self.setDef("section", v), optsFromMap(this.SECTION))),
+        h("div", null, lbl("Termen implicit"), h("div", { style: { display: "flex", gap: 8 } }, h("input", { type: "number", value: D.dueQty, onChange: (e) => self.setDef("dueQty", +e.target.value), style: { ...inp, width: 70 } }), sel(D.dueUnit, (v) => self.setDef("dueUnit", v), optsFromMap(this.UNIT))))),
+      h("div", { style: { marginBottom: 14 } }, lbl("Descriere"), field(D.description, (v) => self.setDef("description", v))),
+      h("div", null, lbl("Etichete (separate prin virgulă)"), field(D.tags, (v) => self.setDef("tags", v)))
+    ]);
+
+    // ---- Stări globale ----
+    const statesCard = card([
+      secTitle("Stări globale (" + ST.length + ") — nomenclator unic pe platformă"),
+      h("div", { style: { display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 14 } }, ...ST.map((s) => h("span", { key: s.id, style: { display: "inline-flex", alignItems: "center", gap: 7, padding: "6px 10px", borderRadius: 999, background: C.line2 } },
+        h("span", { style: { width: 9, height: 9, borderRadius: 999, background: s.color } }),
+        h("span", { style: { fontSize: 12.5, fontWeight: 700 } }, s.name),
+        h("span", { style: { fontSize: 11, color: C.ink3 } }, "(" + self.CAT[s.category] + ")"),
+        h("button", { onClick: () => self.removeState(s.id), style: { border: "none", background: "none", color: C.ink3, cursor: "pointer", fontSize: 12, padding: 0 } }, "✕")))),
+      h(StateAdder, { onAdd: (d) => self.addState(d), CAT: self.CAT, CAT_COLOR: self.CAT_COLOR, C, inp, lbl, btn })
+    ]);
+
+    // ---- Transition editor ----
+    const trEditor = (t) => {
+      const cfgInput = (val, on, ph, w) => h("input", { value: val || "", onChange: (e) => on(e.target.value), placeholder: ph, style: { ...inp, width: w || "100%" } });
+      const validRow = (v, i) => h("div", { key: i, style: { display: "flex", gap: 8, alignItems: "center", padding: 10, background: "#fff", borderRadius: 8, marginBottom: 6, flexWrap: "wrap" } },
+        sel(v.type, (val) => self.patchSub(t.id, "validations", i, { type: val, config: {} }), optsFromMap(self.VALID), { style: { ...inp, width: 220 } }),
+        v.type === "VALIDATE_FIELD" ? h("div", { style: { display: "flex", gap: 6, flex: 1 } }, cfgInput(v.config.fieldKey, (x) => self.patchSub(t.id, "validations", i, { config: { ...v.config, fieldKey: x } }), "cheie câmp", 130), sel(v.config.op || "equals", (x) => self.patchSub(t.id, "validations", i, { config: { ...v.config, op: x } }), [["equals", "este"], ["not_equals", "nu este"]], { style: { ...inp, width: 90 } }), cfgInput(v.config.value, (x) => self.patchSub(t.id, "validations", i, { config: { ...v.config, value: x } }), "valoare", 110)) :
+        v.type === "MANUAL_CHECKLIST" ? cfgInput(v.config.label, (x) => self.patchSub(t.id, "validations", i, { config: { label: x } }), "text bifă de confirmare") :
+        v.type === "VALIDATE_UNIQUENESS" ? cfgInput(v.config.fieldKey, (x) => self.patchSub(t.id, "validations", i, { config: { fieldKey: x } }), "cheie câmp unică") :
+        h("span", { style: { flex: 1, fontSize: 12, color: C.ink3, fontStyle: "italic" } }, "Fără configurare suplimentară."),
+        btn("✕", () => self.removeSub(t.id, "validations", i), "danger"));
+      const actionRow = (a, i) => h("div", { key: i, style: { display: "flex", gap: 8, alignItems: "center", padding: 10, background: "#fff", borderRadius: 8, marginBottom: 6, flexWrap: "wrap" } },
+        sel(a.type, (val) => self.patchSub(t.id, "actions", i, { type: val, config: {} }), optsFromMap(self.ACTION), { style: { ...inp, width: 230 } }),
+        a.type === "ASSIGN_TO_USER" ? sel(a.config.userId || "", (x) => self.patchSub(t.id, "actions", i, { config: { userId: x } }), [["", "Alege utilizator..."], ...self.USERS.map((u) => [u.id, u.name])], { style: { ...inp, flex: 1 } }) :
+        a.type === "ASSIGN_TO_GROUP" ? sel(a.config.groupId || "", (x) => self.patchSub(t.id, "actions", i, { config: { groupId: x } }), [["", "Alege grup..."], ...self.GROUPS.map((g) => [g.id, g.name])], { style: { ...inp, flex: 1 } }) :
+        a.type === "GENERATE_DOCUMENT" ? sel(a.config.templateId || "", (x) => self.patchSub(t.id, "actions", i, { config: { templateId: x } }), [["", "Alege șablon..."], ...self.FORMS.map((f) => [f.id, f.name])], { style: { ...inp, flex: 1 } }) :
+        a.type === "SET_DUE_DATE" ? h("div", { style: { display: "flex", gap: 6 } }, h("input", { type: "number", value: a.config.qty || "", onChange: (e) => self.patchSub(t.id, "actions", i, { config: { ...a.config, qty: +e.target.value } }), style: { ...inp, width: 70 } }), sel(a.config.unit || "BUSINESS_DAYS", (x) => self.patchSub(t.id, "actions", i, { config: { ...a.config, unit: x } }), optsFromMap(self.UNIT), { style: { ...inp, width: 150 } })) :
+        (a.type === "SEND_EMAIL" || a.type === "SEND_NOTIFICATION" || a.type === "ADD_TAG") ? cfgInput(a.config.message || a.config.tag, (x) => self.patchSub(t.id, "actions", i, { config: a.type === "ADD_TAG" ? { tag: x } : { message: x } }), a.type === "ADD_TAG" ? "etichetă" : "mesaj (simulat)") :
+        h("span", { style: { flex: 1, fontSize: 12, color: C.ink3, fontStyle: "italic" } }, "Fără configurare suplimentară."),
+        btn("✕", () => self.removeSub(t.id, "actions", i), "danger"));
+      const trigRow = (tr, i) => h("div", { key: i, style: { display: "flex", gap: 8, alignItems: "center", padding: 10, background: "#fff", borderRadius: 8, marginBottom: 6 } },
+        sel(tr.type, (val) => self.patchSub(t.id, "triggers", i, { type: val, config: {} }), optsFromMap(self.TRIG), { style: { ...inp, width: 200 } }),
+        tr.type === "RESPONSE_THRESHOLD" ? h("input", { type: "number", value: tr.config.min || "", onChange: (e) => self.patchSub(t.id, "triggers", i, { config: { min: +e.target.value } }), placeholder: "nr. minim", style: { ...inp, flex: 1 } }) :
+        h("div", { style: { display: "flex", gap: 6, flex: 1 } }, h("input", { type: "number", value: tr.config.qty || "", onChange: (e) => self.patchSub(t.id, "triggers", i, { config: { ...tr.config, qty: +e.target.value } }), style: { ...inp, width: 70 } }), sel(tr.config.unit || "HOURS", (x) => self.patchSub(t.id, "triggers", i, { config: { ...tr.config, unit: x } }), optsFromMap(self.UNIT), { style: { ...inp, width: 150 } })),
+        btn("✕", () => self.removeSub(t.id, "triggers", i), "danger"));
+      const subHead = (t2) => h("div", { style: { fontSize: 11.5, fontWeight: 700, color: C.ink3, textTransform: "uppercase", letterSpacing: 0.5, margin: "14px 0 8px" } }, t2);
+      return h("div", { style: { marginTop: 8, background: C.bg, borderRadius: 12, padding: 16 } },
+        h("div", { style: { display: "grid", gridTemplateColumns: "1.4fr 1fr 1fr", gap: 10, marginBottom: 12 } },
+          h("div", null, lbl("Nume tranziție"), field(t.name, (v) => self.patchTr(t.id, { name: v }), { placeholder: "ex: Trimite spre aprobare" })),
+          h("div", null, lbl("Din starea"), sel(t.from === null ? "__START__" : t.from, (v) => self.patchTr(t.id, { from: v === "__START__" ? null : v }), [["__START__", "START (inițiere)"], ...stateOpts])),
+          h("div", null, lbl("În starea"), sel(t.to, (v) => self.patchTr(t.id, { to: v }), stateOpts))),
+        h("div", { style: { display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 6 } },
+          chk("Necesită comentariu", t.requiresComment, (v) => self.patchTr(t.id, { requiresComment: v })),
+          chk("Necesită aprobare", t.requiresApproval, (v) => self.patchTr(t.id, { requiresApproval: v })),
+          chk("Notifică petentul", t.notify, (v) => self.patchTr(t.id, { notify: v }))),
+        subHead("Șabloane atașate"),
+        h("div", { style: { display: "flex", flexDirection: "column", gap: 6 } }, ...self.FORMS.map((f) => h("label", { key: f.id, style: { display: "flex", gap: 10, alignItems: "center", fontSize: 13, padding: "6px 10px", background: "#fff", borderRadius: 8 } }, h("input", { type: "checkbox", checked: t.templates.includes(f.id), onChange: (e) => self.patchTr(t.id, { templates: e.target.checked ? [...t.templates, f.id] : t.templates.filter((x) => x !== f.id) }) }), h("span", { style: { flex: 1 } }, f.name), h("span", { style: { fontSize: 10.5, fontWeight: 700, color: C.ink3, background: C.line2, padding: "2px 8px", borderRadius: 999 } }, f.type)))),
+        subHead("Validări (blochează tranziția dacă nu sunt îndeplinite)"),
+        ...t.validations.map((v, i) => validRow(v, i)), btn("+ Validare", () => self.addSub(t.id, "validations", { type: "VALIDATE_FIELD", config: {} })),
+        subHead("Acțiuni (rulează automat după aplicarea tranziției)"),
+        ...t.actions.map((a, i) => actionRow(a, i)), btn("+ Acțiune", () => self.addSub(t.id, "actions", { type: "SEND_NOTIFICATION", config: {} })),
+        subHead("Declanșatori (evaluați automat)"),
+        ...t.triggers.map((tr, i) => trigRow(tr, i)), btn("+ Declanșator", () => self.addSub(t.id, "triggers", { type: "RESPONSE_THRESHOLD", config: {} })),
+        h("div", { style: { marginTop: 14, textAlign: "right" } }, btn("Șterge tranziția", () => self.removeTr(t.id), "danger")));
+    };
+
+    const trRow = (t) => { const open = self.state.openTr === t.id; return h("div", { key: t.id },
+      h("div", { onClick: () => self.setState({ openTr: open ? null : t.id }), style: { display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: open ? C.brandTint : C.line2, borderRadius: 10, cursor: "pointer", border: open ? "1px solid " + C.brand : "1px solid transparent" } },
+        h("span", { style: { fontWeight: 700, fontSize: 13, color: C.ink } }, t.name || "(tranziție nouă)"),
+        h("span", { style: { display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, color: C.ink3 } }, h("span", { style: { width: 8, height: 8, borderRadius: 999, background: stColor(t.from) } }), stName(t.from), " → ", h("span", { style: { width: 8, height: 8, borderRadius: 999, background: stColor(t.to) } }), stName(t.to)),
+        h("span", { style: { marginLeft: "auto", color: C.ink3, fontSize: 12 } }, open ? "▲" : "▼")),
+      open ? trEditor(t) : null); };
+
+    const transCard = card([secTitle("Tranziții (" + TR.length + ")"), h("div", { style: { display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 } }, ...TR.map((t) => trRow(t))), btn("+ Tranziție", () => self.addTr(), "primary")]);
+
+    // ---- Graf (layout pe niveluri, cu ramificare reală) ----
+    const keyOf = (id) => id === null ? "START" : id;
+    const nkeys = []; let hasStart = false;
+    TR.forEach((t) => { if (t.from === null) hasStart = true; else if (!nkeys.includes(t.from)) nkeys.push(t.from); if (!nkeys.includes(t.to)) nkeys.push(t.to); });
+    const allKeys = (hasStart ? ["START"] : []).concat(nkeys.filter((k) => k));
+    const adj = {}; TR.forEach((t) => { const f = keyOf(t.from); (adj[f] = adj[f] || []).push(t.to); });
+    const level = {}; const q = [];
+    if (hasStart) { level.START = 0; q.push("START"); }
+    while (q.length) { const n = q.shift(); (adj[n] || []).forEach((to) => { if (level[to] === undefined) { level[to] = level[n] + 1; q.push(to); } }); }
+    allKeys.forEach((k) => { if (level[k] === undefined) level[k] = 0; });
+    const maxLevel = Math.max(0, ...allKeys.map((k) => level[k]));
+    const byLevel = {}; allKeys.forEach((k) => { (byLevel[level[k]] = byLevel[level[k]] || []).push(k); });
+    const NW = 156, NH = 48, colGap = 234, rowGap = 82, mx = 20, my = 20;
+    let maxRows = 1; for (let l = 0; l <= maxLevel; l++) maxRows = Math.max(maxRows, (byLevel[l] || []).length);
+    const pos = {};
+    for (let l = 0; l <= maxLevel; l++) { const col = byLevel[l] || []; const off = (maxRows - col.length) * rowGap / 2; col.forEach((k, r) => { pos[k] = { x: mx + l * colGap, y: my + off + r * rowGap }; }); }
+    const isFwd = (t) => level[t.to] > level[keyOf(t.from)];
+    const hasBack = TR.some((t) => pos[keyOf(t.from)] && pos[t.to] && !isFwd(t));
+    const GW = mx * 2 + maxLevel * colGap + NW, GH = my * 2 + (maxRows - 1) * rowGap + NH + (hasBack ? 52 : 0);
+    const cut = (s, n) => s.length > n ? s.slice(0, n - 1) + "…" : s;
+    const dipBase = my + (maxRows - 1) * rowGap + NH + 10;
+    let backN = 0;
+    const routes = TR.map((t) => {
+      const a = pos[keyOf(t.from)], b = pos[t.to]; if (!a || !b) return null;
+      if (isFwd(t)) {
+        const x1 = a.x + NW, y1 = a.y + NH / 2, x2 = b.x, y2 = b.y + NH / 2, dx = Math.max(40, Math.abs(x2 - x1) * 0.5);
+        return { back: false, d: "M" + x1 + "," + y1 + " C" + (x1 + dx) + "," + y1 + " " + (x2 - dx) + "," + y2 + " " + x2 + "," + y2, lx: (x1 + x2) / 2, ly: (y1 + y2) / 2 };
+      }
+      const dip = dipBase + (backN++ % 3) * 13, x1 = a.x + NW / 2, y1 = a.y + NH, x2 = b.x + NW / 2, y2 = b.y + NH;
+      return { back: true, d: "M" + x1 + "," + y1 + " C" + x1 + "," + dip + " " + x2 + "," + dip + " " + x2 + "," + y2, lx: (x1 + x2) / 2, ly: dip };
+    });
+    const edges = TR.map((t, i) => { const r = routes[i]; if (!r) return null; return h("path", { key: "e" + i, d: r.d, fill: "none", stroke: r.back ? C.brand : C.ink3, strokeWidth: 1.6, opacity: 0.75, strokeDasharray: r.back ? "5 4" : "none", markerEnd: r.back ? "url(#wfarrowb)" : "url(#wfarrow)" }); });
+    const edgeLabels = TR.map((t, i) => { const r = routes[i]; if (!r || !t.name) return null; const label = cut(t.name, 18), w = label.length * 5.6 + 14; return h("g", { key: "l" + i }, h("rect", { x: r.lx - w / 2, y: r.ly - 9, width: w, height: 18, rx: 9, fill: "#fff", stroke: r.back ? C.brand : C.line }), h("text", { x: r.lx, y: r.ly + 3.5, textAnchor: "middle", fontSize: 9.5, fontWeight: 700, fill: r.back ? C.brand : C.ink2, fontFamily: "'Plus Jakarta Sans',sans-serif" }, label)); });
+    const nodes = allKeys.map((k) => {
+      const p = pos[k], id = k === "START" ? null : k, col = stColor(id);
+      return h("g", { key: "n" + k, transform: "translate(" + p.x + "," + p.y + ")" },
+        h("rect", { width: NW, height: NH, rx: 12, fill: "#fff", stroke: col, strokeWidth: 2 }),
+        h("circle", { cx: 17, cy: NH / 2, r: 5, fill: col }),
+        h("text", { x: 32, y: NH / 2 + 4.5, fontSize: 12.5, fontWeight: 700, fill: C.ink, fontFamily: "'Plus Jakarta Sans',sans-serif" }, cut(stName(id), 18)));
+    });
+    const graf = card([secTitle("Graful fluxului"),
+      h("div", { style: { background: C.bg, border: "1px solid " + C.line, borderRadius: 12, padding: 16, overflowX: "auto" } },
+        h("svg", { width: GW, height: GH, viewBox: "0 0 " + GW + " " + GH, style: { maxWidth: "100%", display: "block" } },
+          h("defs", null, h("marker", { id: "wfarrow", viewBox: "0 0 10 10", refX: 9, refY: 5, markerWidth: 7, markerHeight: 7, orient: "auto-start-reverse" }, h("path", { d: "M0,0 L10,5 L0,10 z", fill: C.ink3 })), h("marker", { id: "wfarrowb", viewBox: "0 0 10 10", refX: 9, refY: 5, markerWidth: 7, markerHeight: 7, orient: "auto-start-reverse" }, h("path", { d: "M0,0 L10,5 L0,10 z", fill: C.brand }))),
+          ...edges, ...edgeLabels, ...nodes)),
+      h("p", { style: { fontSize: 11.5, color: C.ink3, margin: "10px 2px 0" } }, "Fiecare tranziție dintr-o stare creează o ramură; stările cu mai multe ieșiri se ramifică pe verticală.")]);
+
+    const tree = h("div", { style: { display: "flex", flexDirection: "column", gap: 16 } }, detalii, statesCard, transCard, graf, h("div", null, btn("Salvează fluxul", () => {}, "primary")));
+    return { tree };
+  }
+}
+
+class StateAdder extends React.Component {
+  constructor(p) { super(p); this.state = { name: "", category: "TODO", color: p.CAT_COLOR.TODO }; }
+  render() {
+    const h = React.createElement, p = this.props, C = p.C, inp = p.inp;
+    return h("div", { style: { display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap" } },
+      h("div", null, p.lbl("Stare nouă"), h("input", { value: this.state.name, onChange: (e) => this.setState({ name: e.target.value }), placeholder: "ex: Aprobat", style: { ...inp, width: 160 } })),
+      h("div", null, p.lbl("Categorie (coloană)"), h("select", { value: this.state.category, onChange: (e) => this.setState({ category: e.target.value, color: p.CAT_COLOR[e.target.value] }), style: { ...inp, width: 150 } }, ...Object.entries(p.CAT).map(([v, l]) => h("option", { key: v, value: v }, l)))),
+      h("div", null, p.lbl("Culoare"), h("input", { type: "color", value: this.state.color, onChange: (e) => this.setState({ color: e.target.value }), style: { width: 48, height: 38, padding: 2, border: "1.5px solid " + C.line, borderRadius: 10, background: "#fff" } })),
+      p.btn("+ Stare", () => { if (this.state.name.trim()) { p.onAdd({ name: this.state.name, category: this.state.category, color: this.state.color }); this.setState({ name: "" }); } }, "primary"));
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,380 @@
+import api from "../iam/api";
+
+export type LmsCourseStatus = "DRAFT" | "PUBLISHED";
+export type LmsCourseRole = "AUTHOR" | "COAUTHOR";
+
+export interface LmsCourseCollaboratorDto {
+  id: string;
+  courseId: string;
+  userId: string;
+  courseRole: LmsCourseRole;
+  user: { id: string; name?: string; email: string };
+}
+
+export interface LmsRubricCriterion {
+  label: string;
+  maxScore: number;
+}
+
+export interface LmsRubricDto {
+  id: string;
+  courseId: string;
+  criteria: LmsRubricCriterion[];
+}
+
+export interface LmsCourseSummary {
+  id: string;
+  title: string;
+  description?: string;
+  status: LmsCourseStatus;
+  authorId: string;
+  createdAt: string;
+  updatedAt: string;
+  lessons: { id: string; title: string; order: number }[];
+  collaborators: LmsCourseCollaboratorDto[];
+  rubric?: LmsRubricDto | null;
+}
+
+export async function fetchCourses(): Promise<LmsCourseSummary[]> {
+  const { data } = await api.get("/api/lms/courses");
+  return data;
+}
+
+export async function createCourse(input: { title: string; description?: string }): Promise<LmsCourseSummary> {
+  const { data } = await api.post("/api/lms/courses", input);
+  return data;
+}
+
+export async function fetchCourse(id: string): Promise<LmsCourseSummary> {
+  const { data } = await api.get(`/api/lms/courses/${id}`);
+  return data;
+}
+
+export async function updateCourse(id: string, input: Partial<{ title: string; description: string; status: LmsCourseStatus }>): Promise<LmsCourseSummary> {
+  const { data } = await api.patch(`/api/lms/courses/${id}`, input);
+  return data;
+}
+
+export async function deleteCourse(id: string) {
+  await api.delete(`/api/lms/courses/${id}`);
+}
+
+// --- Lecții / blocuri de conținut ---
+
+export type LessonBlock =
+  | { id: string; type: "TEXT"; text: string }
+  | { id: string; type: "IMAGE"; url: string; caption?: string }
+  | { id: string; type: "VIDEO"; url: string; caption?: string }
+  | { id: string; type: "QUIZ"; questions: LmsQuizQuestion[]; requiredScoreToUnlockNext: number };
+
+export interface LmsQuizQuestion {
+  id: string;
+  text: string;
+  options: string[];
+  correctIndex: number;
+}
+
+export interface LmsLessonDto {
+  id: string;
+  courseId: string;
+  title: string;
+  order: number;
+  content: LessonBlock[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export async function fetchLessons(courseId: string): Promise<LmsLessonDto[]> {
+  const { data } = await api.get(`/api/lms/courses/${courseId}/lessons`);
+  return data;
+}
+
+export async function createLesson(courseId: string, title: string): Promise<LmsLessonDto> {
+  const { data } = await api.post(`/api/lms/courses/${courseId}/lessons`, { title });
+  return data;
+}
+
+export async function updateLesson(id: string, input: Partial<{ title: string; content: LessonBlock[] }>): Promise<LmsLessonDto> {
+  const { data } = await api.patch(`/api/lms/lessons/${id}`, input);
+  return data;
+}
+
+export async function deleteLesson(id: string) {
+  await api.delete(`/api/lms/lessons/${id}`);
+}
+
+export async function reorderLessons(courseId: string, items: { id: string; order: number }[]) {
+  await api.put(`/api/lms/courses/${courseId}/lessons/reorder`, { items });
+}
+
+export interface LessonAccessDto {
+  lessonId: string;
+  locked: boolean;
+}
+
+export async function fetchLessonAccess(courseId: string): Promise<LessonAccessDto[]> {
+  const { data } = await api.get(`/api/lms/courses/${courseId}/lessons/access`);
+  return data;
+}
+
+// --- AI ---
+
+export async function generateStructure(courseId: string, subject: string, file?: File | null): Promise<LmsLessonDto[]> {
+  const form = new FormData();
+  form.append("courseId", courseId);
+  form.append("subject", subject);
+  if (file) form.append("file", file);
+  const { data } = await api.post("/api/lms/ai/generate-structure", form);
+  return data;
+}
+
+export async function rewriteText(text: string, instruction: "REWRITE" | "ADAPT" | "EXPAND" | "SUMMARIZE"): Promise<string> {
+  const { data } = await api.post("/api/lms/ai/rewrite", { text, instruction });
+  return data.result as string;
+}
+
+// --- Colaborare ---
+
+export async function addCollaborator(courseId: string, userId: string, courseRole: LmsCourseRole = "COAUTHOR"): Promise<LmsCourseCollaboratorDto> {
+  const { data } = await api.post(`/api/lms/courses/${courseId}/collaborators`, { userId, courseRole });
+  return data;
+}
+
+export async function removeCollaborator(courseId: string, userId: string) {
+  await api.delete(`/api/lms/courses/${courseId}/collaborators/${userId}`);
+}
+
+export interface LmsCommentDto {
+  id: string;
+  lessonId: string;
+  blockId: string;
+  authorId: string;
+  body: string;
+  resolved: boolean;
+  createdAt: string;
+}
+
+export async function fetchComments(lessonId: string): Promise<LmsCommentDto[]> {
+  const { data } = await api.get(`/api/lms/lessons/${lessonId}/comments`);
+  return data;
+}
+
+export async function addComment(lessonId: string, blockId: string, body: string): Promise<LmsCommentDto> {
+  const { data } = await api.post(`/api/lms/lessons/${lessonId}/comments`, { blockId, body });
+  return data;
+}
+
+export async function resolveComment(id: string): Promise<LmsCommentDto> {
+  const { data } = await api.patch(`/api/lms/comments/${id}/resolve`);
+  return data;
+}
+
+export async function fetchRubric(courseId: string): Promise<LmsRubricDto | null> {
+  const { data } = await api.get(`/api/lms/courses/${courseId}/rubric`);
+  return data;
+}
+
+export async function saveRubric(courseId: string, criteria: LmsRubricCriterion[]): Promise<LmsRubricDto> {
+  const { data } = await api.put(`/api/lms/courses/${courseId}/rubric`, { criteria });
+  return data;
+}
+
+export interface LmsRubricScoreDto {
+  id: string;
+  lessonId: string;
+  evaluatorId: string;
+  scores: { label: string; score: number }[];
+  createdAt: string;
+}
+
+export async function submitRubricScore(lessonId: string, scores: { label: string; score: number }[]): Promise<LmsRubricScoreDto> {
+  const { data } = await api.post(`/api/lms/lessons/${lessonId}/rubric-score`, { scores });
+  return data;
+}
+
+export async function fetchRubricScores(lessonId: string): Promise<LmsRubricScoreDto[]> {
+  const { data } = await api.get(`/api/lms/lessons/${lessonId}/rubric-scores`);
+  return data;
+}
+
+// --- Enrollment ---
+
+export interface LmsEnrollmentDto {
+  id: string;
+  courseId: string;
+  userId: string;
+  currentLessonId?: string | null;
+  progressPercent: number;
+  updatedAt: string;
+}
+
+export async function fetchEnrollment(courseId: string): Promise<LmsEnrollmentDto> {
+  const { data } = await api.get(`/api/lms/courses/${courseId}/enrollment`);
+  return data;
+}
+
+export async function updateProgress(courseId: string, input: { currentLessonId?: string; progressPercent?: number }): Promise<LmsEnrollmentDto> {
+  const { data } = await api.patch(`/api/lms/courses/${courseId}/enrollment/progress`, input);
+  return data;
+}
+
+// Certificat de absolvire (cerință CNFPA) — emis automat de backend la 100% progres.
+export interface LmsCertificateDto {
+  id: string;
+  courseId: string;
+  certificateNumber: string;
+  issuedAt: string;
+  course: { id: string; title: string };
+}
+
+export async function fetchMyCertificates(): Promise<LmsCertificateDto[]> {
+  const { data } = await api.get("/api/lms/certificates");
+  return data;
+}
+
+// Ruta cere autentificare — descărcăm ca blob (nu <a href> simplu) ca să trimitem
+// Authorization, la fel ca restul fișierelor autentificate din platformă.
+export async function downloadCertificate(certificate: LmsCertificateDto) {
+  const { data } = await api.get(`/api/lms/certificates/${certificate.id}/file`, { responseType: "blob" });
+  const url = URL.createObjectURL(data);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${certificate.certificateNumber}.pdf`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// Fișier audio real (pct. 11), generat server-side (espeak-ng) — spre deosebire de
+// redarea live cu Web Speech API din `speakText`, aici primim un .wav propriu-zis de descărcat.
+export async function downloadLessonAudio(text: string) {
+  const { data } = await api.post("/api/lms/tts", { text }, { responseType: "blob" });
+  const url = URL.createObjectURL(data);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "lectie-audio.wav";
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// --- Quiz ---
+
+export async function submitQuizAttempt(lessonId: string, answers: Record<string, number>): Promise<{ score: number; passed: boolean; correctCount: number; totalCount: number }> {
+  const { data } = await api.post(`/api/lms/lessons/${lessonId}/quiz-attempt`, { answers });
+  return data;
+}
+
+// --- Asistent / intenții ---
+
+export interface LmsIntentDto {
+  id: string;
+  courseId: string;
+  name: string;
+  triggerPhrases: string[];
+  responseMode: "CANNED" | "AI";
+  cannedResponse?: string | null;
+}
+
+export async function fetchIntents(courseId: string): Promise<LmsIntentDto[]> {
+  const { data } = await api.get(`/api/lms/courses/${courseId}/intents`);
+  return data;
+}
+
+export async function createIntent(courseId: string, input: Omit<LmsIntentDto, "id" | "courseId">): Promise<LmsIntentDto> {
+  const { data } = await api.post(`/api/lms/courses/${courseId}/intents`, input);
+  return data;
+}
+
+export async function updateIntent(id: string, input: Partial<Omit<LmsIntentDto, "id" | "courseId">>): Promise<LmsIntentDto> {
+  const { data } = await api.patch(`/api/lms/intents/${id}`, input);
+  return data;
+}
+
+export async function deleteIntent(id: string) {
+  await api.delete(`/api/lms/intents/${id}`);
+}
+
+export interface LmsAssistantSettingsDto {
+  language: string;
+  tone: string;
+  domainTerms: string[];
+  fallbackSteps: { order: number; prompt: string }[];
+  stalledAfterDays: number;
+}
+
+export async function fetchAssistantSettings(): Promise<LmsAssistantSettingsDto> {
+  const { data } = await api.get("/api/lms/assistant-settings");
+  return data;
+}
+
+export async function updateAssistantSettings(input: Partial<LmsAssistantSettingsDto>): Promise<LmsAssistantSettingsDto> {
+  const { data } = await api.patch("/api/lms/assistant-settings", input);
+  return data;
+}
+
+// --- Motor AI (pct. 8) — setări globale existente deja pe backend (/api/iam/ai-settings),
+// fără consumator în frontend până acum; reutilizate ca atare, doar UI nou aici. ---
+
+export interface AiSettingsDto {
+  defaultModel: string;
+}
+
+export async function fetchAiSettings(): Promise<AiSettingsDto> {
+  const { data } = await api.get("/api/iam/ai-settings");
+  return data;
+}
+
+export async function updateAiSettings(defaultModel: string): Promise<AiSettingsDto> {
+  const { data } = await api.patch("/api/iam/ai-settings", { defaultModel });
+  return data;
+}
+
+// --- Materiale pentru adaptarea asistentului (pct. 3) — textul extras fundamentează
+// real răspunsurile asistentului LMS, nu antrenează un model separat. ---
+
+export interface LmsAssistantResourceDto {
+  id: string;
+  filename: string;
+  mimeType: string;
+  extractedText?: string | null;
+  createdAt: string;
+}
+
+export async function fetchAssistantResources(): Promise<LmsAssistantResourceDto[]> {
+  const { data } = await api.get("/api/lms/assistant-resources");
+  return data;
+}
+
+export async function uploadAssistantResources(files: File[]): Promise<LmsAssistantResourceDto[]> {
+  const form = new FormData();
+  files.forEach((f) => form.append("files", f));
+  const { data } = await api.post("/api/lms/assistant-resources", form);
+  return data;
+}
+
+export async function deleteAssistantResource(id: string) {
+  await api.delete(`/api/lms/assistant-resources/${id}`);
+}
+
+export async function testAssistant(courseId: string, message: string): Promise<{ matchedIntent: string | null; response: string }> {
+  const { data } = await api.post("/api/lms/assistant/test", { courseId, message });
+  return data;
+}
+
+export async function askLesson(lessonId: string, question: string): Promise<{ response: string }> {
+  const { data } = await api.post(`/api/lms/lessons/${lessonId}/ask`, { question });
+  return data;
+}
+
+// Regulă automată: o înscriere fără progres nou de prea multe zile e semnalată "stagnantă".
+export interface LmsEnrollmentRosterDto {
+  id: string;
+  progressPercent: number;
+  updatedAt: string;
+  stalled: boolean;
+  user: { id: string; name?: string; email: string };
+}
+
+export async function fetchCourseEnrollments(courseId: string): Promise<LmsEnrollmentRosterDto[]> {
+  const { data } = await api.get(`/api/lms/courses/${courseId}/enrollments`);
+  return data;
+}

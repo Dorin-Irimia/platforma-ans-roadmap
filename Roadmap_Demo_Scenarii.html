@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+<meta charset="UTF-8">
+<title>Roadmap Demo — Scenariul de Demonstrație Obligatoriu ANS</title>
+<style>
+  :root{
+    --navy:#0f2942; --blue:#2563eb; --teal:#0d9488; --amber:#d97706; --red:#dc2626;
+    --purple:#7c3aed; --green:#16a34a; --orange:#ea580c; --gray:#64748b; --bg:#f4f6f9;
+    --card:#ffffff; --border:#e2e8f0; --text:#1e293b; --muted:#64748b;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:'Segoe UI',Arial,sans-serif;background:var(--bg);color:var(--text);line-height:1.5;}
+  header.top{background:linear-gradient(135deg,var(--red),#7c2d12);color:#fff;padding:34px 40px;}
+  header.top h1{margin:0 0 6px;font-size:26px;}
+  header.top p{margin:0;color:#fde2e2;font-size:14px;max-width:900px;}
+  .alert{background:#fff7ed;border:1px solid #fdba74;color:#7c2d12;padding:14px 40px;font-size:13.5px;}
+  .alert b{color:#9a3412;}
+  nav.tabs{position:sticky;top:0;background:#fff;border-bottom:2px solid var(--border);display:flex;flex-wrap:wrap;z-index:50;box-shadow:0 2px 6px rgba(0,0,0,.05);}
+  nav.tabs a{padding:12px 16px;font-size:13px;font-weight:600;color:var(--navy);text-decoration:none;white-space:nowrap;border-bottom:3px solid transparent;}
+  nav.tabs a:hover{background:#eef3fa;border-bottom-color:var(--blue);}
+  main{max-width:1280px;margin:0 auto;padding:30px 40px 80px;}
+  section{margin-bottom:56px;scroll-margin-top:52px;}
+  h2{font-size:21px;color:var(--navy);border-left:5px solid var(--red);padding-left:12px;margin-bottom:18px;}
+  h3{font-size:16px;color:var(--navy);margin:22px 0 10px;}
+  .lead{font-size:14px;color:var(--muted);max-width:900px;}
+  .grid-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px;margin-top:16px;}
+  .stat{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center;}
+  .stat b{display:block;font-size:22px;color:var(--red);}
+  .stat span{font-size:12px;color:var(--muted);}
+  table{width:100%;border-collapse:collapse;background:var(--card);font-size:13px;border:1px solid var(--border);border-radius:8px;overflow:hidden;}
+  th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--border);vertical-align:top;}
+  th{background:#eaf1fb;color:var(--navy);font-size:12px;text-transform:uppercase;letter-spacing:.03em;}
+  tr:last-child td{border-bottom:none;}
+  .tag{display:inline-block;background:#eef3fa;color:var(--navy);border-radius:5px;padding:1px 7px;font-size:10.5px;margin:0 4px 4px 0;}
+  .note{font-size:12px;color:var(--muted);margin-top:10px;}
+
+  /* Sprint gantt */
+  .gantt-wrap{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:20px;overflow-x:auto;}
+  .gantt-scale{display:grid;grid-template-columns:240px repeat(8,1fr);font-size:10.5px;color:var(--muted);margin-bottom:4px;min-width:900px;}
+  .gantt-scale div{text-align:center;padding:2px 0;border-left:1px solid #eef2f7;}
+  .gantt-row{display:grid;grid-template-columns:240px repeat(8,1fr);align-items:center;min-width:900px;height:34px;}
+  .gantt-row .label{font-size:12.5px;font-weight:600;color:var(--navy);padding-right:10px;}
+  .gantt-track{grid-column:2/10;position:relative;height:22px;background:repeating-linear-gradient(90deg,#f8fafc,#f8fafc calc(100%/8 - 1px),#eef2f7 calc(100%/8));border-radius:4px;}
+  .bar{position:absolute;top:0;height:22px;border-radius:5px;color:#fff;font-size:10.5px;display:flex;align-items:center;padding-left:6px;white-space:nowrap;overflow:hidden;box-shadow:0 1px 2px rgba(0,0,0,.2);}
+  .legend{display:flex;flex-wrap:wrap;gap:10px 18px;margin-top:16px;font-size:12px;}
+  .legend span{display:inline-flex;align-items:center;gap:6px;}
+  .legend i{width:12px;height:12px;border-radius:3px;display:inline-block;}
+
+  /* Scenario cards */
+  .scenarios{display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:16px;}
+  .scard{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px 18px;border-top:4px solid var(--red);}
+  .scard h3{margin-top:0;font-size:15px;display:flex;align-items:center;gap:8px;}
+  .scard .idx{background:var(--red);color:#fff;border-radius:50%;width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0;}
+  .scard p.desc{font-size:12.5px;color:var(--muted);margin:6px 0 10px;}
+  .scard ol{margin:0;padding-left:18px;font-size:12px;}
+  .scard ol li{margin-bottom:5px;}
+  .scard .mod{font-size:11px;color:var(--blue);font-weight:600;margin-top:8px;}
+
+  /* Folder tree */
+  .tree{background:#0f172a;color:#cbd5e1;border-radius:10px;padding:20px;font-family:'Consolas',monospace;font-size:12.5px;overflow-x:auto;line-height:1.7;}
+  .tree .dir{color:#7dd3fc;} .tree .file{color:#e2e8f0;} .tree .comment{color:#64748b;}
+
+  /* Architecture */
+  .arch{display:flex;flex-direction:column;gap:6px;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:20px;}
+  .layer{border-radius:8px;padding:12px 16px;color:#fff;}
+  .layer h4{margin:0 0 6px;font-size:13px;}
+  .layer .items{display:flex;flex-wrap:wrap;gap:6px;}
+  .layer .item{background:rgba(255,255,255,.18);padding:4px 9px;border-radius:6px;font-size:11.5px;}
+  .l1{background:#1d4e80;} .l2{background:var(--blue);} .l3{background:#0f2942;} .l4{background:var(--teal);}
+  .arrow-down{text-align:center;color:var(--muted);font-size:16px;margin:-2px 0;}
+
+  .checklist{list-style:none;padding:0;margin:0;font-size:12.5px;}
+  .checklist li{padding:5px 0 5px 26px;position:relative;border-bottom:1px dashed var(--border);}
+  .checklist li:last-child{border-bottom:none;}
+  .checklist li::before{content:"☐";position:absolute;left:0;color:var(--red);font-size:14px;}
+  footer{text-align:center;font-size:11.5px;color:var(--muted);padding:20px;border-top:1px solid var(--border);}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <h1>Roadmap Demo — Scenariul de Demonstrație Obligatoriu (Cap. 8 din Caiet)</h1>
+  <p>Structură de lucru pentru construirea prototipului funcțional care acoperă exact cele 5 scenarii de demonstrație cerute de Autoritatea Contractantă — bază reutilizabilă și scalabilă către Roadmap-ul PM complet (13 module, 24 luni).</p>
+</header>
+
+<div class="alert"><b>De ce contează:</b> conform Cap. 8 + Cap. 9.VI din caiet, oferta tehnică trebuie însoțită de o <b>înregistrare video</b> a acestor 5 scenarii demonstrate punct cu punct. Dacă oricare cerință nu poate fi demonstrată, <b>oferta este respinsă ca neconformă</b>. Acesta este motivul pentru care începem lucrul de aici, nu de la cele 13 module ale platformei complete.</div>
+
+<nav class="tabs">
+  <a href="#sumar">Sumar</a>
+  <a href="#reguli">Reguli video</a>
+  <a href="#scenarii">Cele 5 Scenarii</a>
+  <a href="#arhitectura">Arhitectură Tehnică</a>
+  <a href="#structura">Structură Repo</a>
+  <a href="#sprint">Plan Sprint-uri</a>
+  <a href="#scalare">Scalare spre Roadmap PM</a>
+</nav>
+
+<main>
+
+<!-- SUMAR -->
+<section id="sumar">
+  <h2>1. Sumar</h2>
+  <div class="grid-cards">
+    <div class="stat"><b>5</b><span>Scenarii obligatorii</span></div>
+    <div class="stat"><b>8 săpt.</b><span>Durată propusă demo</span></div>
+    <div class="stat"><b>1</b><span>Video final (SEAP)</span></div>
+    <div class="stat"><b>Node.js+React</b><span>Stack ales</span></div>
+    <div class="stat"><b>PostgreSQL</b><span>Bază de date</span></div>
+  </div>
+  <p class="lead">Scenariile nu cer configurarea proceselor specifice ANS, ci doar funcționalitățile de bază standard ale platformelor ofertate (Cap. 8, ultimul paragraf). Practic: construim un prototip generic, funcțional, care acoperă exact pașii ceruți — nu întreaga platformă ANS.</p>
+</section>
+
+<!-- REGULI -->
+<section id="reguli">
+  <h2>2. Reguli obligatorii pentru înregistrarea video</h2>
+  <ul class="checklist">
+    <li>Captură ecran complet — câmpuri și butoane vizibile și lizibile</li>
+    <li>Mișcări mouse lente, urmăribile</li>
+    <li>Narațiune audio sincronizată cu acțiunile de pe ecran, pentru fiecare pas</li>
+    <li>Fișier redabil pe Windows 10 + Windows Media Player (format compatibil, ex. MP4/H.264)</li>
+    <li>Se încarcă în SEAP odată cu oferta — fără link-uri externe/streaming</li>
+    <li>Fiecare cerință din scenarii trebuie demonstrată explicit, punct cu punct (nu prezentare generală)</li>
+    <li>Posibilă reluare online a sesiunii, la cererea Autorității Contractante, în etapa de evaluare</li>
+  </ul>
+</section>
+
+<!-- SCENARII -->
+<section id="scenarii">
+  <h2>3. Cele 5 Scenarii Obligatorii</h2>
+  <div class="scenarios">
+
+    <div class="scard">
+      <h3><span class="idx">1</span>Portal / DMS / Registratură / Workflow</h3>
+      <p class="desc">Cel mai amplu scenariu — validează întregul ciclu formular public → înregistrare → workflow → răspuns semnat electronic.</p>
+      <ol>
+        <li>Form Builder: creare formular nou din interfața de administrare</li>
+        <li>Logică condițională (câmp selector → câmpuri dinamice)</li>
+        <li>Mapare câmpuri formular → entitate internă „Cerere"</li>
+        <li>Publicare instant formular pe Portal (sync real-time)</li>
+        <li>Diferențiere acces autentificat/neautentificat pe Portal</li>
+        <li>Completare formular cu validări + trimitere</li>
+        <li>Creare automată „Cerere" în Back-Office + notificări</li>
+        <li>Registratură: nr. înregistrare automat, metadate, atașamente</li>
+        <li>Inițiere workflow direct din registratură</li>
+        <li>Motor workflow: rutare automată, termene, diagramă vizuală</li>
+        <li>Editor colaborativ documente (track changes, comentarii @user)</li>
+        <li>Generare răspuns oficial din template + flux aprobare</li>
+        <li>Semnătură electronică + publicare răspuns + notificare email</li>
+      </ol>
+      <div class="mod">→ Modul platformă: Portal Public + Registratură/DMS</div>
+    </div>
+
+    <div class="scard" style="border-top-color:var(--blue)">
+      <h3><span class="idx">2</span>Business Intelligence</h3>
+      <p class="desc">Dashboard-uri + interogare în limbaj natural.</p>
+      <ol>
+        <li>3–4 dashboard-uri: conformitate/termene, flux documente, workload (date pot fi simulate)</li>
+        <li>NL2SQL: întrebare în română → interogare generată/sugerată → rezultat tabelar/grafic</li>
+        <li>Salvare rezultate/grafice în zonă de rapoarte/widget-uri reutilizabile</li>
+      </ol>
+      <div class="mod">→ Modul platformă: Rapoarte Business Intelligence</div>
+    </div>
+
+    <div class="scard" style="border-top-color:var(--purple)">
+      <h3><span class="idx">3</span>Chatbot / Asistent Virtual AI</h3>
+      <p class="desc">Cont, roluri, documente, template-uri, conversații, voce, generare documente.</p>
+      <ol>
+        <li>Înregistrare + autentificare cont nou</li>
+        <li>Roluri admin vs. utilizator standard (acces diferențiat)</li>
+        <li>Upload document + procesare automată de către AI</li>
+        <li>Template documente cu variabile ({{NUME}}, {{CNP}}...)</li>
+        <li>Gestionare variabile (creare/editare/ștergere)</li>
+        <li>Conversații: creare, mesaje, redenumire, ștergere, căutare</li>
+        <li>Upload fișiere în conversație + extragere informații</li>
+        <li>Mesaje vocale → conversie speech-to-text → procesare AI</li>
+        <li>Generare document prin conversație (preview + completare variabile)</li>
+        <li>Notificare documente suplimentare necesare + upload direct</li>
+        <li>Text-to-Speech pe răspunsurile AI</li>
+      </ol>
+      <div class="mod">→ Modul platformă: Chatbot/Asistent Virtual</div>
+    </div>
+
+    <div class="scard" style="border-top-color:var(--navy)">
+      <h3><span class="idx">4</span>Securitate / IAM</h3>
+      <p class="desc">Fundația transversală — se construiește prima, o folosesc toate celelalte scenarii.</p>
+      <ol>
+        <li>Identity service: CRUD conturi + grupuri</li>
+        <li>Fluxuri autentificare configurabile: parolă, 2FA (SMS/OTP), eIDAS/ROeID (mock), politici sesiune/parolă</li>
+        <li>RBAC granular pe resurse/acțiuni cu roluri predefinite/personalizate</li>
+        <li>Audit trail imuabil + filtrare/căutare avansată</li>
+        <li>Secret Manager pentru chei API/certificate/credențiale</li>
+      </ol>
+      <div class="mod">→ Cerință transversală: 4.10.1 Managementul utilizatorilor</div>
+    </div>
+
+    <div class="scard" style="border-top-color:var(--green)">
+      <h3><span class="idx">5</span>LMS (platforma CNFPA)</h3>
+      <p class="desc">Asistent de învățare AI + CMS + colaborare + experiența cursantului.</p>
+      <ol>
+        <li>Asistent voce-text RO + bază de cunoștințe interogabilă</li>
+        <li>Adaptare model de limbaj + intenții (intents) personalizate</li>
+        <li>RBAC: creare utilizator cu rol (Autor/Evaluator), blocare/deblocare cont</li>
+        <li>Configurare motor AI (cheie API prin Secret Manager, model implicit)</li>
+        <li>Audit & securitate: filtrare jurnale, simulare evenimente</li>
+        <li>CMS: creare proiect, generare AI a structurii materialului, editor drag-and-drop</li>
+        <li>Asistență AI: rescrie/extinde/rezumă text + Text-to-Speech</li>
+        <li>Colaborare: co-autor, comentarii contextuale, rubrică evaluare</li>
+        <li>Responsive: Desktop/Tabletă/Mobil + mod Previzualizare</li>
+        <li>Experiența cursantului: reluare curs de unde a rămas (sync cross-device)</li>
+        <li>Evaluări + „Barieră Logică" (blocare avansare fără scor minim)</li>
+      </ol>
+      <div class="mod">→ Modul platformă: CNFPA</div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ARHITECTURA -->
+<section id="arhitectura">
+  <h2>4. Arhitectură Tehnică Propusă (Prototip Demo)</h2>
+  <p class="lead">Stack ales: <b>Node.js + React + PostgreSQL</b> — rapid de dezvoltat, ușor de rulat local/pe un server accesibil prin HTTP, aliniat cu cerințele API-first din caiet.</p>
+  <div class="arch">
+    <div class="layer l1">
+      <h4>Frontend — React (Vite) + TypeScript</h4>
+      <div class="items">
+        <span class="item">Portal public (formulare, autentificare)</span>
+        <span class="item">Back-Office (registratură, workflow, editor documente)</span>
+        <span class="item">Dashboard BI (grafice + NL2SQL)</span>
+        <span class="item">UI Chatbot (chat, upload, voce)</span>
+        <span class="item">UI LMS (CMS, player curs, evaluări)</span>
+        <span class="item">Admin IAM (utilizatori, roluri, audit)</span>
+      </div>
+    </div>
+    <div class="arrow-down">▼ REST API (OpenAPI) + JWT/OAuth2</div>
+    <div class="layer l2">
+      <h4>Backend — Node.js (Express/NestJS)</h4>
+      <div class="items">
+        <span class="item">Modul IAM (auth, RBAC, audit, secrets)</span>
+        <span class="item">Modul DMS (formulare, registratură, workflow engine)</span>
+        <span class="item">Modul BI (ETL simplu, NL2SQL prin LLM local/API)</span>
+        <span class="item">Modul Chatbot (conversații, STT/TTS, generare documente)</span>
+        <span class="item">Modul LMS (cursuri, CMS, evaluări)</span>
+      </div>
+    </div>
+    <div class="arrow-down">▼</div>
+    <div class="layer l3">
+      <h4>Date &amp; Storage</h4>
+      <div class="items">
+        <span class="item">PostgreSQL (date structurate, audit log)</span>
+        <span class="item">Object storage local/S3-compatible (documente, fișiere)</span>
+        <span class="item">Redis (sesiuni, cache, cozi mesaje)</span>
+      </div>
+    </div>
+    <div class="arrow-down">▼</div>
+    <div class="layer l4">
+      <h4>Infrastructură Demo</h4>
+      <div class="items">
+        <span class="item">Docker Compose (rulare locală, un singur „docker compose up")</span>
+        <span class="item">HTTP accesibil local (localhost) sau pe un server de test</span>
+        <span class="item">CI simplu (lint + build) — GitHub Actions</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- STRUCTURA REPO -->
+<section id="structura">
+  <h2>5. Structură de Repo (scalabilă spre platforma completă)</h2>
+  <p class="lead">Structura de mai jos rulează demo-ul, dar folderul <code>modules/</code> e gândit ca fiecare scenariu să devină ulterior un modul complet din Roadmap-ul PM (13 module).</p>
+  <div class="tree">
+platforma-ans-roadmap/  <span class="comment">(repo existent — documentație PM)</span><br>
+├── Roadmap_PM_Platforma_ANS.html  <span class="comment">← roadmap general 24 luni</span><br>
+├── Roadmap_Demo_Scenarii.html  <span class="comment">← acest document</span><br>
+├── docs/  <span class="comment">(extrase din caiet)</span><br>
+│   ├── 01-module-functionale.md<br>
+│   ├── 02-infrastructura-securitate.md<br>
+│   ├── 03-metodologie-echipa.md<br>
+│   └── 04-scenariu-demonstrativ.md<br>
+├── source/  <span class="comment">(PDF original)</span><br>
+└── <span class="dir">demo-app/</span>  <span class="comment">← codul prototipului, START AICI</span><br>
+&nbsp;&nbsp;&nbsp;├── <span class="dir">backend/</span><br>
+&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;├── <span class="dir">src/</span><br>
+&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;│&nbsp;&nbsp;├── <span class="dir">modules/</span><br>
+&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;│&nbsp;&nbsp;│&nbsp;&nbsp;├── <span class="dir">iam/</span>&nbsp;&nbsp;<span class="comment">Scenariul 4 — auth, RBAC, audit, secrets</span><br>
+&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;│&nbsp;&nbsp;│&nbsp;&nbsp;├── <span class="dir">dms/</span>&nbsp;&nbsp;<span class="comment">Scenariul 1 — forms, registratura, workflow</span><br>
+&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;│&nbsp;&nbsp;│&nbsp;&nbsp;├── <span class="dir">bi/</span>&nbsp;&nbsp;&nbsp;<span class="comment">Scenariul 2 — dashboards, nl2sql</span><br>
+&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;│&nbsp;&nbsp;│&nbsp;&nbsp;├── <span class="dir">chatbot/</span>&nbsp;<span class="comment">Scenariul 3 — conversations, tts/stt</span><br>
+&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;│&nbsp;&nbsp;│&nbsp;&nbsp;└── <span class="dir">lms/</span>&nbsp;&nbsp;<span class="comment">Scenariul 5 — courses, cms, quizzes</span><br>
+&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;│&nbsp;&nbsp;├── <span class="dir">shared/</span>&nbsp;&nbsp;<span class="comment">db, middleware, config</span><br>
+&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;│&nbsp;&nbsp;└── <span class="file">app.ts</span><br>
+&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;├── <span class="dir">prisma/</span>&nbsp;&nbsp;<span class="comment">schema + migrations PostgreSQL</span><br>
+&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;└── <span class="file">package.json</span><br>
+&nbsp;&nbsp;&nbsp;├── <span class="dir">frontend/</span><br>
+&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;├── <span class="dir">src/</span><br>
+&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;│&nbsp;&nbsp;├── <span class="dir">pages/</span>&nbsp;&nbsp;<span class="comment">o pagină per scenariu</span><br>
+&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;│&nbsp;&nbsp;├── <span class="dir">features/</span><br>
+&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;│&nbsp;&nbsp;├── <span class="dir">components/</span><br>
+&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;│&nbsp;&nbsp;└── <span class="file">App.tsx</span><br>
+&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;└── <span class="file">package.json</span><br>
+&nbsp;&nbsp;&nbsp;├── <span class="file">docker-compose.yml</span><br>
+&nbsp;&nbsp;&nbsp;└── <span class="file">README.md</span>&nbsp;&nbsp;<span class="comment">cum se rulează local</span>
+  </div>
+  <p class="note">Când proiectul avansează spre cele 13 module ale Roadmap-ului PM, fiecare folder din <code>modules/</code> se extinde (ex. <code>dms/</code> → devine Registratură completă + Arhivă; <code>iam/</code> → devine Modulul Administrativ complet), fără să schimbăm arhitectura de bază.</p>
+</section>
+
+<!-- SPRINT PLAN -->
+<section id="sprint">
+  <h2>6. Plan de Sprint-uri (8 săptămâni)</h2>
+  <div class="gantt-wrap">
+    <div class="gantt-scale">
+      <div></div>
+      <div>S1</div><div>S2</div><div>S3</div><div>S4</div><div>S5</div><div>S6</div><div>S7</div><div>S8</div>
+    </div>
+    <div class="gantt-row">
+      <div class="label">Sprint 0 — Setup + Scenariul 4 (IAM)</div>
+      <div class="gantt-track"><div class="bar" style="left:0%;width:12.5%;background:var(--navy);">S1</div></div>
+    </div>
+    <div class="gantt-row">
+      <div class="label">Scenariul 1 — Portal/DMS/Workflow</div>
+      <div class="gantt-track"><div class="bar" style="left:12.5%;width:25%;background:var(--red);">S2–S3</div></div>
+    </div>
+    <div class="gantt-row">
+      <div class="label">Scenariul 2 — Business Intelligence</div>
+      <div class="gantt-track"><div class="bar" style="left:37.5%;width:12.5%;background:var(--blue);">S4</div></div>
+    </div>
+    <div class="gantt-row">
+      <div class="label">Scenariul 3 — Chatbot AI</div>
+      <div class="gantt-track"><div class="bar" style="left:50%;width:12.5%;background:var(--purple);">S5</div></div>
+    </div>
+    <div class="gantt-row">
+      <div class="label">Scenariul 5 — LMS (CNFPA)</div>
+      <div class="gantt-track"><div class="bar" style="left:62.5%;width:12.5%;background:var(--green);">S6</div></div>
+    </div>
+    <div class="gantt-row">
+      <div class="label">Integrare + QA + polish UI</div>
+      <div class="gantt-track"><div class="bar" style="left:75%;width:12.5%;background:var(--amber);">S7</div></div>
+    </div>
+    <div class="gantt-row">
+      <div class="label">Înregistrare video + verificare cerințe</div>
+      <div class="gantt-track"><div class="bar" style="left:87.5%;width:12.5%;background:#111827;">S8</div></div>
+    </div>
+    <div class="legend">
+      <span><i style="background:var(--navy)"></i>Fundație/IAM</span>
+      <span><i style="background:var(--red)"></i>DMS/Workflow</span>
+      <span><i style="background:var(--blue)"></i>BI</span>
+      <span><i style="background:var(--purple)"></i>Chatbot</span>
+      <span><i style="background:var(--green)"></i>LMS</span>
+      <span><i style="background:var(--amber)"></i>QA</span>
+      <span><i style="background:#111827"></i>Video</span>
+    </div>
+  </div>
+  <h3>De ce IAM (Scenariul 4) se construiește primul</h3>
+  <p class="lead">Autentificarea, RBAC și audit trail sunt folosite de toate celelalte 4 scenarii (login, roluri admin/user, jurnal de acțiuni). Construindu-l în Sprint 0, evităm refactorizări ulterioare.</p>
+</section>
+
+<!-- SCALARE -->
+<section id="scalare">
+  <h2>7. Cum scalează spre Roadmap-ul PM (13 module, 24 luni)</h2>
+  <table>
+    <tr><th>Element din demo</th><th>Devine în platforma completă</th></tr>
+    <tr><td>modules/iam/</td><td>Modul Administrativ + Managementul utilizatorilor și accesul la sistem (4.10.1)</td></tr>
+    <tr><td>modules/dms/</td><td>Registratură–Management documente (4.5.2) + integrare cu Arhivă (4.5.9)</td></tr>
+    <tr><td>modules/bi/</td><td>Rapoarte Business Intelligence (4.5.12) cu Data Warehouse complet</td></tr>
+    <tr><td>modules/chatbot/</td><td>Chatbot/Asistent Virtual (4.5.11) cu model NLP propriu antrenat</td></tr>
+    <tr><td>modules/lms/</td><td>Modul CNFPA (4.5.8) complet, cu SCORM și acreditare Ministerul Muncii</td></tr>
+    <tr><td>Frontend pages/</td><td>Portal Public ANS (4.5.1) + restul modulelor de business (Registrul Sportiv, Registrul Bazelor Sportive, Anuarul Sportului, Galeria Marilor Sportivi, Aplicații mobile)</td></tr>
+    <tr><td>Docker Compose local</td><td>Migrare spre Cloud Privat Guvernamental / Azure Stack Hub (vezi Roadmap PM, secțiunea Infrastructură)</td></tr>
+  </table>
+  <p class="note">Practic: acest demo <b>este</b> începutul Fazei „Dezvoltare soluție TIC integrată" (L1–L13) din Roadmap-ul PM general — doar concentrat pe cerințele minime obligatorii, nu pe toate cele 13 module.</p>
+</section>
+
+</main>
+
+<footer>
+  Document elaborat pentru planificarea muncii de dezvoltare pe baza Cap. 8 și 9.VI din Caietul de Sarcini — fără valoare contractuală.
+</footer>
+
+</body>
+</html>

@@ -1,0 +1,126 @@
+@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+
+:root {
+  --indigo: #172027;
+  --indigo-dark: #0E1116;
+  --indigo-soft: #2A343D;
+  --indigo-tint: #E7E9EA;
+  --brand: #FF6B1A;
+  --brand-soft: #ff8a4d;
+  --brand-dark: #e85a0c;
+  --brand-tint: #FFF1E8;
+  --brand-tint-2: #FCD9CB;
+  --ink: #0E1116;
+  --ink-2: #3C4149;
+  --ink-3: #6A6F78;
+  --ink-4: #A0A5AD;
+  --line: #E8E9EC;
+  --line-2: #F2F3F5;
+  --bg: #F6F5F2;
+  --bg-soft: #FBFAF8;
+  --card: #FFFFFF;
+  --success: #2F9E6F;
+  --success-tint: #E8F5EE;
+  --info: #0369A1;
+  --info-tint: #E0F2FE;
+  --warn: #E0A52C;
+  --warn-tint: #FDF6E3;
+  --danger: #E0432C;
+  --danger-tint: #FDECEA;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --font-display: 'Bricolage Grotesque', sans-serif;
+  --font-body: 'Plus Jakarta Sans', sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4 {
+  font-family: var(--font-display);
+  letter-spacing: -0.3px;
+  color: var(--ink);
+  margin: 0;
+}
+
+a { color: var(--brand); text-decoration: none; font-weight: 600; }
+a:hover { color: var(--brand-dark); }
+
+@keyframes ansFade {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* Skeleton loading (ui.tsx, `<Skeleton>`) — shimmer în buclă, mai ieftin ca
+   framer-motion pentru o animație continuă (nu se re-randează React la fiecare frame). */
+@keyframes skeletonShimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.skeleton {
+  background: linear-gradient(90deg, var(--line-2) 25%, var(--line) 50%, var(--line-2) 75%);
+  background-size: 200% 100%;
+  animation: skeletonShimmer 1.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton { animation: none; }
+  * { scroll-behavior: auto !important; }
+}
+
+input, select, textarea {
+  font-family: var(--font-body);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  font-size: 14px;
+  color: var(--ink);
+  background: var(--card);
+  outline: none;
+}
+input:focus, select:focus, textarea:focus {
+  border-color: var(--brand);
+  background: var(--brand-tint);
+  box-shadow: 0 0 0 3px var(--brand-tint);
+}
+
+/* Contrast ridicat — activat din panoul de accesibilitate (AccessibilityMenu.tsx),
+   persistat în localStorage. Întărește gri-urile spre negru, îngroașă bordurile,
+   subliniază linkurile și adaugă un contur de focus vizibil peste tot. */
+html[data-contrast="high"] {
+  --ink-2: #000000;
+  --ink-3: #1a1a1a;
+  --ink-4: #333333;
+  --line: #000000;
+  --line-2: #4d4d4d;
+}
+html[data-contrast="high"] a { text-decoration: underline; }
+html[data-contrast="high"] input,
+html[data-contrast="high"] select,
+html[data-contrast="high"] textarea {
+  border-width: 2px;
+}
+html[data-contrast="high"] *:focus-visible {
+  outline: 3px solid #000 !important;
+  outline-offset: 2px;
+}
+
+table { border-collapse: collapse; width: 100%; }
+th, td { text-align: left; padding: 10px 12px; font-size: 13px; }
+th {
+  color: var(--ink-3);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  border-bottom: 1px solid var(--line);
+}
+tr td { border-bottom: 1px solid var(--line-2); }

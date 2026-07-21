@@ -1,0 +1,903 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700&display=swap">
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: #F6F5F2; color: #0E1116; font-family: 'Plus Jakarta Sans', -apple-system, sans-serif; -webkit-font-smoothing: antialiased; }
+  a { color: #FF6B1A; text-decoration: none; font-weight: 600; }
+  a:hover { color: #e85a0c; }
+  h1,h2,h3,h4 { font-family: 'Bricolage Grotesque','Plus Jakarta Sans',sans-serif; margin: 0; color: #0E1116; letter-spacing: -0.3px; }
+  ::selection { background: #FFE3D1; }
+  @keyframes ansFade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+</style>
+</helmet>
+
+<sc-if value="{{ isLogin }}" hint-placeholder-val="{{ false }}">
+<div style="min-height:100vh;background:#F6F5F2;display:flex;align-items:center;justify-content:center;padding:24px;">
+  <div style="width:404px;background:#fff;border-radius:24px;padding:36px;border:1px solid #E8E9EC;box-shadow:0 4px 16px rgba(14,17,22,0.12);animation:ansFade .3s ease;">
+    <div style="display:flex;align-items:center;gap:11px;margin-bottom:22px;">
+      <span style="display:inline-flex;">{{ logoMark }}</span>
+      <div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:19px;letter-spacing:-0.4px;">Platformă <span style="color:#FF6B1A;">ANS</span></div>
+    </div>
+      <h2 style="font-size:26px;font-weight:700;letter-spacing:-0.5px;margin-bottom:4px;">Bine ai revenit</h2>
+      <p style="color:#6A6F78;font-size:13.5px;margin:0 0 24px;">Autentifică-te în contul instituțional</p>
+      <div style="margin-bottom:14px;">
+        <div style="font-size:13px;font-weight:600;color:#3C4149;margin-bottom:7px;">Email</div>
+        <input value="administrator@ans.ro" style="width:100%;border:1.5px solid #E8E9EC;border-radius:12px;padding:12px 14px;font-size:14px;font-family:'Plus Jakarta Sans',sans-serif;color:#0E1116;background:#FBFAF8;outline:none;" />
+      </div>
+      <div style="margin-bottom:20px;">
+        <div style="font-size:13px;font-weight:600;color:#3C4149;margin-bottom:7px;">Parolă</div>
+        <input type="password" value="••••••••••" style="width:100%;border:1.5px solid #FF6B1A;border-radius:12px;padding:12px 14px;font-size:14px;font-family:'Plus Jakarta Sans',sans-serif;color:#0E1116;background:#FFF1E8;outline:none;" />
+      </div>
+      <button onClick="{{ login }}" style="width:100%;background:#FF6B1A;color:#fff;font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:16px;border:none;border-radius:14px;padding:14px;cursor:pointer;box-shadow:0 6px 16px rgba(255,107,26,0.40);">Intră în cont</button>
+      <div style="display:flex;align-items:center;gap:10px;margin:20px 0;">
+        <div style="flex:1;height:1px;background:#E8E9EC;"></div>
+        <span style="font-size:11px;color:#6A6F78;font-weight:600;letter-spacing:0.5px;">SAU</span>
+        <div style="flex:1;height:1px;background:#E8E9EC;"></div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <button onClick="{{ login }}" style="width:100%;display:flex;align-items:center;gap:11px;padding:11px 14px;border-radius:12px;border:1.5px solid #E8E9EC;background:#fff;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:13.5px;color:#0E1116;">
+          <span style="width:4px;align-self:stretch;border-radius:2px;overflow:hidden;display:flex;flex-direction:column;"><span style="flex:1;background:#003399;"></span><span style="flex:1;background:#FFCC00;"></span></span>
+          <span style="font-size:15px;">🔐</span> Autentificare cu eIDAS
+        </button>
+        <button onClick="{{ login }}" style="width:100%;display:flex;align-items:center;gap:11px;padding:11px 14px;border-radius:12px;border:1.5px solid #E8E9EC;background:#fff;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:13.5px;color:#0E1116;">
+          <span style="width:4px;align-self:stretch;border-radius:2px;overflow:hidden;display:flex;flex-direction:column;"><span style="flex:1;background:#002B7F;"></span><span style="flex:1;background:#FCD116;"></span><span style="flex:1;background:#CE1126;"></span></span>
+          <span style="font-size:15px;">🏛️</span> Autentificare cu RoEID
+        </button>
+      </div>
+      <p style="font-size:13px;color:#6A6F78;margin:20px 0 0;text-align:center;">Nu ai cont? <a onClick="{{ goRegister }}" style="cursor:pointer;">Creează unul</a></p>
+  </div>
+</div>
+</sc-if>
+
+<sc-if value="{{ isRegister }}" hint-placeholder-val="{{ false }}">
+<div style="min-height:100vh;background:#F6F5F2;display:flex;align-items:center;justify-content:center;padding:24px;">
+  <div style="width:404px;background:#fff;border-radius:24px;padding:36px;border:1px solid #E8E9EC;box-shadow:0 4px 16px rgba(14,17,22,0.12);animation:ansFade .3s ease;">
+    <div style="display:flex;align-items:center;gap:11px;margin-bottom:22px;">
+      <span style="display:inline-flex;">{{ logoMark }}</span>
+      <div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:19px;letter-spacing:-0.4px;">Platformă <span style="color:#FF6B1A;">ANS</span></div>
+    </div>
+      <h2 style="font-size:26px;font-weight:700;letter-spacing:-0.5px;margin-bottom:4px;">Creează cont</h2>
+      <p style="color:#6A6F78;font-size:13.5px;margin:0 0 24px;">Cont nou pentru portalul ANS</p>
+      <div style="margin-bottom:14px;">
+        <div style="font-size:13px;font-weight:600;color:#3C4149;margin-bottom:7px;">Nume complet</div>
+        <input placeholder="Andrei Popescu" style="width:100%;border:1.5px solid #E8E9EC;border-radius:12px;padding:12px 14px;font-size:14px;font-family:'Plus Jakarta Sans',sans-serif;background:#FBFAF8;outline:none;" />
+      </div>
+      <div style="margin-bottom:14px;">
+        <div style="font-size:13px;font-weight:600;color:#3C4149;margin-bottom:7px;">Email</div>
+        <input placeholder="nume@exemplu.ro" style="width:100%;border:1.5px solid #E8E9EC;border-radius:12px;padding:12px 14px;font-size:14px;font-family:'Plus Jakarta Sans',sans-serif;background:#FBFAF8;outline:none;" />
+      </div>
+      <div style="margin-bottom:20px;">
+        <div style="font-size:13px;font-weight:600;color:#3C4149;margin-bottom:7px;">Parolă</div>
+        <input type="password" placeholder="Minim 8 caractere" style="width:100%;border:1.5px solid #E8E9EC;border-radius:12px;padding:12px 14px;font-size:14px;font-family:'Plus Jakarta Sans',sans-serif;background:#FBFAF8;outline:none;" />
+        <p style="font-size:12px;color:#6A6F78;margin:7px 0 0;">Minim 8 caractere, o literă mare și o cifră.</p>
+      </div>
+      <button onClick="{{ goLogin }}" style="width:100%;background:#FF6B1A;color:#fff;font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:16px;border:none;border-radius:14px;padding:14px;cursor:pointer;box-shadow:0 6px 16px rgba(255,107,26,0.40);">Creează cont</button>
+      <p style="font-size:13px;color:#6A6F78;margin:20px 0 0;text-align:center;">Ai deja cont? <a onClick="{{ goLogin }}" style="cursor:pointer;">Autentifică-te</a></p>
+  </div>
+</div>
+</sc-if>
+
+<sc-if value="{{ isApp }}" hint-placeholder-val="{{ true }}">
+<div style="min-height:100vh;background:#F6F5F2;display:flex;flex-direction:column;">
+  <header style="height:64px;background:#fff;border-bottom:1px solid #E8E9EC;display:flex;align-items:center;justify-content:space-between;padding:0 24px;flex-shrink:0;position:sticky;top:0;z-index:20;">
+    <div style="display:flex;align-items:center;gap:11px;">
+      <span style="display:inline-flex;">{{ logoMark }}</span>
+      <div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:16px;letter-spacing:-0.3px;">Platformă <span style="color:#FF6B1A;">ANS</span> <span style="color:#A0A5AD;font-weight:500;font-size:13px;">· eGuvernare</span></div>
+    </div>
+    <div style="display:flex;align-items:center;gap:16px;">
+      <div style="text-align:right;">
+        <div style="font-size:13px;font-weight:700;color:#0E1116;">{{ user.name }}</div>
+        <span style="display:inline-flex;align-items:center;padding:2px 9px;border-radius:999px;background:#FFF1E8;color:#e85a0c;font-size:10.5px;font-weight:700;letter-spacing:0.3px;margin-top:2px;">{{ user.role }}</span>
+      </div>
+      <div style="width:38px;height:38px;border-radius:999px;background:#172027;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;font-family:'Bricolage Grotesque',sans-serif;">{{ user.initials }}</div>
+      <button style="width:38px;height:38px;border-radius:999px;border:1px solid #E8E9EC;background:#FBFAF8;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:15px;">🔔</button>
+    </div>
+  </header>
+
+  <div style="flex:1;display:flex;align-items:stretch;">
+    <aside style="width:{{ sidebarWidth }};background:#172027;display:flex;flex-direction:column;padding:16px 0;flex-shrink:0;gap:2px;">
+      <div style="flex:1;display:flex;flex-direction:column;gap:2px;">
+        <sc-for list="{{ nav }}" as="item" hint-placeholder-count="10">
+          <div onClick="{{ item.onClick }}" title="{{ item.label }}" style="{{ item.navStyle }}">
+            <span style="font-size:17px;line-height:1;width:22px;text-align:center;flex-shrink:0;">{{ item.emoji }}</span>
+            <span style="{{ item.labelStyle }}">{{ item.label }}</span>
+          </div>
+        </sc-for>
+      </div>
+      <div style="padding:0 12px;display:flex;flex-direction:column;gap:2px;">
+        <div style="height:1px;background:rgba(255,255,255,0.08);margin:8px 2px;"></div>
+        <div onClick="{{ logout }}" title="Deconectare" style="display:flex;align-items:center;gap:12px;padding:10px 14px;border-radius:12px;cursor:pointer;font-size:14px;font-weight:600;color:rgba(255,255,255,0.55);">
+          <span style="font-size:17px;width:22px;text-align:center;flex-shrink:0;">🚪</span>
+          <span style="{{ labelStyle }}">Deconectare</span>
+        </div>
+      </div>
+    </aside>
+
+    <main style="flex:1;padding:36px 44px;overflow-x:auto;">
+      <div style="max-width:1040px;">
+        <div style="margin-bottom:26px;animation:ansFade .25s ease;">
+          <h1 style="font-size:29px;font-weight:700;letter-spacing:-0.6px;">{{ pageTitle }}</h1>
+          <p style="color:#6A6F78;font-size:14px;margin:6px 0 0;">{{ pageSubtitle }}</p>
+        </div>
+
+<sc-if value="{{ isDashboard }}" hint-placeholder-val="{{ true }}">
+          <div style="display:flex;flex-direction:column;gap:24px;">
+            <div style="background:#172027;border-radius:24px;padding:28px 30px;box-shadow:0 4px 16px rgba(14,17,22,0.12);">
+              <div style="font-size:12px;font-weight:600;color:#B9C7B2;text-transform:capitalize;margin-bottom:6px;">luni, 17 mai · Bună ziua 👋</div>
+              <div style="font-family:'Bricolage Grotesque',sans-serif;font-size:24px;font-weight:700;color:#fff;letter-spacing:-0.3px;margin-bottom:22px;">Ai 37 de cereri în lucru și 4 termene apropiate.</div>
+              <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;">
+                <sc-for list="{{ stats }}" as="s" hint-placeholder-count="4">
+                  <div style="background:rgba(255,255,255,0.09);border:1px solid rgba(255,255,255,0.12);border-radius:16px;padding:16px;">
+                    <div style="font-size:11.5px;font-weight:600;color:rgba(255,255,255,0.64);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:8px;">{{ s.label }}</div>
+                    <div style="font-family:'Bricolage Grotesque',sans-serif;font-size:30px;font-weight:700;color:#fff;">{{ s.value }}</div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+
+            <div>
+              <div style="font-size:12px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:#6A6F78;margin-bottom:14px;">Acțiuni rapide</div>
+              <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;">
+                <sc-for list="{{ quickActions }}" as="q" hint-placeholder-count="4">
+                  <div onClick="{{ q.onClick }}" style="background:#fff;border:1px solid #E8E9EC;border-radius:16px;padding:18px;box-shadow:0 1px 4px rgba(14,17,22,0.06);cursor:pointer;display:flex;align-items:center;gap:14px;">
+                    <div style="width:46px;height:46px;border-radius:12px;background:#FFF1E8;display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0;">{{ q.emoji }}</div>
+                    <div>
+                      <div style="font-size:14px;font-weight:700;color:#0E1116;">{{ q.label }}</div>
+                      <div style="font-size:12px;color:#6A6F78;margin-top:2px;">{{ q.desc }}</div>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+
+            <div style="background:#fff;border:1px solid #E8E9EC;border-radius:16px;box-shadow:0 1px 4px rgba(14,17,22,0.06);overflow:hidden;">
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:18px 20px 12px;">
+                <div style="font-size:12px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:#6A6F78;">Activitate recentă</div>
+                <a onClick="{{ goAudit }}" style="font-size:13px;font-weight:600;cursor:pointer;">Vezi tot jurnalul →</a>
+              </div>
+              <table style="border-collapse:collapse;width:100%;">
+                <thead>
+                  <tr>
+                    <th style="text-align:left;padding:8px 20px;font-size:11px;text-transform:uppercase;letter-spacing:0.6px;color:#6A6F78;border-bottom:1px solid #E8E9EC;">Data</th>
+                    <th style="text-align:left;padding:8px 20px;font-size:11px;text-transform:uppercase;letter-spacing:0.6px;color:#6A6F78;border-bottom:1px solid #E8E9EC;">Acțiune</th>
+                    <th style="text-align:right;padding:8px 20px;font-size:11px;text-transform:uppercase;letter-spacing:0.6px;color:#6A6F78;border-bottom:1px solid #E8E9EC;">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <sc-for list="{{ recentEvents }}" as="e" hint-placeholder-count="6">
+                    <tr>
+                      <td style="padding:12px 20px;font-size:13px;color:#3C4149;border-bottom:1px solid #F2F3F5;">{{ e.date }}</td>
+                      <td style="padding:12px 20px;font-size:13px;font-weight:600;color:#0E1116;border-bottom:1px solid #F2F3F5;">{{ e.action }}</td>
+                      <td style="padding:12px 20px;text-align:right;border-bottom:1px solid #F2F3F5;">{{ e.statusPill }}</td>
+                    </tr>
+                  </sc-for>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </sc-if>
+
+<sc-if value="{{ isPortal }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;gap:8px;margin-bottom:22px;">
+            <button onClick="{{ setForms }}" style="{{ tabFormsStyle }}">Formulare disponibile</button>
+            <button onClick="{{ setMine }}" style="{{ tabMineStyle }}">Cererile mele</button>
+          </div>
+          <div style="{{ formsDisplay }}">
+            <div style="display:flex;flex-direction:column;gap:12px;">
+              <sc-for list="{{ forms }}" as="f" hint-placeholder-count="4">
+                <div style="background:#fff;border:1px solid #E8E9EC;border-radius:16px;box-shadow:0 1px 4px rgba(14,17,22,0.06);padding:18px 20px;display:flex;align-items:center;justify-content:space-between;gap:16px;">
+                  <div style="display:flex;align-items:center;gap:14px;">
+                    <div style="width:44px;height:44px;border-radius:12px;background:#FFF1E8;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;">📝</div>
+                    <div>
+                      <div style="font-size:15px;font-weight:700;color:#0E1116;">{{ f.name }}</div>
+                      <div style="font-size:13px;color:#6A6F78;margin-top:2px;">{{ f.desc }}</div>
+                    </div>
+                  </div>
+                  <button onClick="{{ f.onClick }}" style="background:#FF6B1A;color:#fff;font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:13px;border:none;border-radius:12px;padding:10px 16px;cursor:pointer;box-shadow:0 4px 12px rgba(255,107,26,0.28);white-space:nowrap;flex-shrink:0;">Completează</button>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+          <div style="{{ mineDisplay }}">
+            <div style="display:flex;flex-direction:column;gap:12px;">
+              <sc-for list="{{ myRequests }}" as="r" hint-placeholder-count="2">
+                <div onClick="{{ r.onClick }}" style="background:#fff;border:1px solid #E8E9EC;border-radius:16px;box-shadow:0 1px 4px rgba(14,17,22,0.06);padding:18px 20px;display:flex;align-items:center;justify-content:space-between;gap:16px;cursor:pointer;">
+                  <div>
+                    <div style="font-size:14.5px;font-weight:700;color:#0E1116;">{{ r.nr }} — {{ r.form }}</div>
+                    <div style="font-size:12px;color:#6A6F78;margin-top:3px;">Depusă la {{ r.date }}</div>
+                  </div>
+                  <div style="display:flex;gap:8px;align-items:center;flex-shrink:0;">{{ r.statePill }}{{ r.extra }}</div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ isRegistratura }}" hint-placeholder-val="{{ false }}">
+          <div style="background:#fff;border:1px solid #E8E9EC;border-radius:16px;box-shadow:0 1px 4px rgba(14,17,22,0.06);overflow:hidden;">
+            <div style="padding:18px 20px 12px;font-size:12px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:#6A6F78;">6 cereri înregistrate</div>
+            <table style="border-collapse:collapse;width:100%;">
+              <thead>
+                <tr>
+                  <th style="text-align:left;padding:8px 20px;font-size:11px;text-transform:uppercase;letter-spacing:0.6px;color:#6A6F78;border-bottom:1px solid #E8E9EC;">Nr. înregistrare</th>
+                  <th style="text-align:left;padding:8px 20px;font-size:11px;text-transform:uppercase;letter-spacing:0.6px;color:#6A6F78;border-bottom:1px solid #E8E9EC;">Petent</th>
+                  <th style="text-align:left;padding:8px 20px;font-size:11px;text-transform:uppercase;letter-spacing:0.6px;color:#6A6F78;border-bottom:1px solid #E8E9EC;">Categorie</th>
+                  <th style="text-align:left;padding:8px 20px;font-size:11px;text-transform:uppercase;letter-spacing:0.6px;color:#6A6F78;border-bottom:1px solid #E8E9EC;">Status</th>
+                  <th style="text-align:left;padding:8px 20px;font-size:11px;text-transform:uppercase;letter-spacing:0.6px;color:#6A6F78;border-bottom:1px solid #E8E9EC;">Termen</th>
+                  <th style="text-align:left;padding:8px 20px;font-size:11px;text-transform:uppercase;letter-spacing:0.6px;color:#6A6F78;border-bottom:1px solid #E8E9EC;">Workflow</th>
+                </tr>
+              </thead>
+              <tbody>
+                <sc-for list="{{ requests }}" as="r" hint-placeholder-count="6">
+                  <tr onClick="{{ r.onClick }}" style="cursor:pointer;">
+                    <td style="padding:13px 20px;font-size:13px;font-weight:700;color:#0E1116;border-bottom:1px solid #F2F3F5;">{{ r.nr }}</td>
+                    <td style="padding:13px 20px;font-size:13px;color:#3C4149;border-bottom:1px solid #F2F3F5;">{{ r.petent }}</td>
+                    <td style="padding:13px 20px;font-size:13px;color:#3C4149;border-bottom:1px solid #F2F3F5;">{{ r.cat }}</td>
+                    <td style="padding:13px 20px;border-bottom:1px solid #F2F3F5;">{{ r.statusPill }}</td>
+                    <td style="padding:13px 20px;border-bottom:1px solid #F2F3F5;">{{ r.termenPill }}</td>
+                    <td style="padding:13px 20px;border-bottom:1px solid #F2F3F5;">{{ r.wfPill }}</td>
+                  </tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </sc-if>
+
+<sc-if value="{{ isRequest }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;flex-direction:column;gap:20px;">
+            <div><button onClick="{{ goBack }}" style="background:#F2F3F5;color:#3C4149;font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:13px;border:none;border-radius:12px;padding:9px 15px;cursor:pointer;">← Înapoi la registratură</button></div>
+
+            <div style="background:#fff;border:1px solid #E8E9EC;border-radius:16px;box-shadow:0 1px 4px rgba(14,17,22,0.06);padding:20px;">
+              <div style="font-size:12px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:#6A6F78;margin-bottom:16px;">Date formular</div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px 24px;">
+                <sc-for list="{{ requestData }}" as="row" hint-placeholder-count="6">
+                  <div style="display:flex;flex-direction:column;gap:3px;">
+                    <span style="font-size:11.5px;color:#6A6F78;text-transform:uppercase;letter-spacing:0.3px;">{{ row.0 }}</span>
+                    <span style="font-size:14px;color:#0E1116;font-weight:600;">{{ row.1 }}</span>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+
+            <div style="background:#fff;border:1px solid #E8E9EC;border-radius:16px;box-shadow:0 1px 4px rgba(14,17,22,0.06);padding:20px;">
+              <div style="font-size:12px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:#6A6F78;margin-bottom:14px;">Atașamente</div>
+              <div style="border:2px dashed #E8E9EC;border-radius:12px;padding:22px;text-align:center;background:#FBFAF8;margin-bottom:14px;">
+                <div style="font-size:24px;margin-bottom:6px;">📎</div>
+                <p style="margin:0;font-size:13px;color:#6A6F78;">Trage fișiere aici sau dă click pentru a le selecta</p>
+              </div>
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:#F2F3F5;border-radius:10px;">
+                <div style="font-size:13px;"><span style="font-weight:600;">buget-proiect-2024.pdf</span><span style="color:#6A6F78;"> · 248 KB · 4 pag.</span></div>
+                <div style="display:flex;gap:8px;"><button style="background:#F2F3F5;border:1px solid #E8E9EC;color:#3C4149;font-weight:700;font-size:12px;border-radius:10px;padding:6px 12px;cursor:pointer;">Deschide</button></div>
+              </div>
+            </div>
+
+            <div style="background:#fff;border:1px solid #E8E9EC;border-radius:16px;box-shadow:0 1px 4px rgba(14,17,22,0.06);padding:20px;">
+              <div style="font-size:12px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:#6A6F78;margin-bottom:14px;">Flux de lucru</div>
+              <div style="font-size:13px;color:#6A6F78;margin-bottom:8px;">Stare curentă</div>
+              <div style="display:flex;gap:8px;align-items:center;margin-bottom:16px;">{{ currentStatePill }}{{ wfDeadlinePill }}</div>
+              <div style="display:flex;flex-direction:column;gap:7px;margin-bottom:16px;">
+                <sc-for list="{{ wfEvents }}" as="ev" hint-placeholder-count="2">
+                  <div style="font-size:12.5px;color:#6A6F78;">{{ ev.txt }}</div>
+                </sc-for>
+              </div>
+              <div style="font-size:12px;color:#6A6F78;margin-bottom:8px;">Tranziții disponibile din starea curentă</div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                <sc-for list="{{ wfTransitions }}" as="tr" hint-placeholder-count="3">
+                  <button style="background:#F2F3F5;color:#3C4149;font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:12.5px;border:none;border-radius:12px;padding:9px 14px;cursor:pointer;">{{ tr }}</button>
+                </sc-for>
+              </div>
+            </div>
+
+            <div style="background:#fff;border:1px solid #E8E9EC;border-radius:16px;box-shadow:0 1px 4px rgba(14,17,22,0.06);padding:20px;">
+              <div style="font-size:12px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:#6A6F78;margin-bottom:14px;">Răspuns oficial</div>
+              <div style="display:flex;gap:8px;margin-bottom:8px;">
+                <div style="flex:1;border:1.5px solid #E8E9EC;border-radius:12px;padding:11px 13px;font-size:13px;color:#6A6F78;background:#FBFAF8;">Alege un șablon de răspuns...</div>
+                <button style="background:#FF6B1A;color:#fff;font-weight:700;font-size:13px;border:none;border-radius:12px;padding:0 18px;cursor:pointer;box-shadow:0 4px 12px rgba(255,107,26,0.28);">Generează</button>
+              </div>
+              <p style="font-size:13px;color:#6A6F78;margin:8px 0 0;">Niciun răspuns generat încă.</p>
+            </div>
+
+            <div style="background:#fff;border:1px solid #E8E9EC;border-radius:16px;box-shadow:0 1px 4px rgba(14,17,22,0.06);padding:20px;">
+              <div style="font-size:12px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:#6A6F78;margin-bottom:14px;">Comentarii</div>
+              <div style="font-size:13px;margin-bottom:14px;">
+                <strong>Mihai Radu</strong><span style="color:#6A6F78;"> · 12 mai, 10:15</span>
+                <div style="color:#3C4149;margin-top:2px;">Bugetul pare complet. Aștept confirmarea CUI-ului de la @Elena Dumitru.</div>
+              </div>
+              <div style="display:flex;gap:8px;">
+                <input placeholder="Comentariu nou (folosește @nume pentru mențiuni)" style="flex:1;border:1.5px solid #E8E9EC;border-radius:12px;padding:11px 13px;font-size:13px;font-family:'Plus Jakarta Sans',sans-serif;background:#FBFAF8;outline:none;" />
+                <button style="background:#FF6B1A;color:#fff;font-weight:700;font-size:13px;border:none;border-radius:12px;padding:0 18px;cursor:pointer;box-shadow:0 4px 12px rgba(255,107,26,0.28);">Trimite</button>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+
+<sc-if value="{{ isUsers }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;flex-direction:column;gap:16px;">
+            <div style="background:#fff;border:1px solid #E8E9EC;border-radius:16px;box-shadow:0 1px 4px rgba(14,17,22,0.06);overflow:hidden;">
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:18px 20px 12px;">
+                <div style="font-size:12px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:#6A6F78;">6 conturi</div>
+                <button style="background:#FF6B1A;color:#fff;font-weight:700;font-size:13px;border:none;border-radius:12px;padding:9px 15px;cursor:pointer;box-shadow:0 4px 12px rgba(255,107,26,0.28);">＋ Invită angajat</button>
+              </div>
+              <table style="border-collapse:collapse;width:100%;">
+                <thead>
+                  <tr>
+                    <th style="text-align:left;padding:8px 20px;font-size:11px;text-transform:uppercase;letter-spacing:0.6px;color:#6A6F78;border-bottom:1px solid #E8E9EC;">Email</th>
+                    <th style="text-align:left;padding:8px 20px;font-size:11px;text-transform:uppercase;letter-spacing:0.6px;color:#6A6F78;border-bottom:1px solid #E8E9EC;">Nume</th>
+                    <th style="text-align:left;padding:8px 20px;font-size:11px;text-transform:uppercase;letter-spacing:0.6px;color:#6A6F78;border-bottom:1px solid #E8E9EC;">Rol</th>
+                    <th style="text-align:left;padding:8px 20px;font-size:11px;text-transform:uppercase;letter-spacing:0.6px;color:#6A6F78;border-bottom:1px solid #E8E9EC;">Status</th>
+                    <th style="text-align:right;padding:8px 20px;font-size:11px;text-transform:uppercase;letter-spacing:0.6px;color:#6A6F78;border-bottom:1px solid #E8E9EC;"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <sc-for list="{{ usersList }}" as="u" hint-placeholder-count="6">
+                    <tr>
+                      <td style="padding:13px 20px;font-size:13px;font-weight:600;color:#0E1116;border-bottom:1px solid #F2F3F5;">{{ u.email }}</td>
+                      <td style="padding:13px 20px;font-size:13px;color:#3C4149;border-bottom:1px solid #F2F3F5;">{{ u.name }}</td>
+                      <td style="padding:13px 20px;border-bottom:1px solid #F2F3F5;">{{ u.rolePill }}</td>
+                      <td style="padding:13px 20px;border-bottom:1px solid #F2F3F5;">{{ u.statusPill }}</td>
+                      <td style="padding:13px 20px;text-align:right;border-bottom:1px solid #F2F3F5;"><button style="background:#F2F3F5;color:#3C4149;font-weight:700;font-size:12px;border:none;border-radius:10px;padding:6px 12px;cursor:pointer;">Editează</button></td>
+                    </tr>
+                  </sc-for>
+                </tbody>
+              </table>
+            </div>
+
+            <div style="background:#fff;border:1px solid #E8E9EC;border-radius:16px;box-shadow:0 1px 4px rgba(14,17,22,0.06);padding:20px;">
+              <div style="font-size:12px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:#6A6F78;margin-bottom:14px;">Grupuri</div>
+              <div style="display:flex;flex-direction:column;gap:12px;">
+                <sc-for list="{{ groups }}" as="g" hint-placeholder-count="2">
+                  <div style="border:1px solid #E8E9EC;border-radius:12px;padding:14px;">
+                    <div style="font-size:13.5px;font-weight:700;color:#0E1116;margin-bottom:4px;">{{ g.name }}</div>
+                    <div style="font-size:12.5px;color:#6A6F78;">{{ g.members }}</div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+
+            <div style="background:#fff;border:1px solid #E8E9EC;border-radius:16px;box-shadow:0 1px 4px rgba(14,17,22,0.06);padding:20px;">
+              <div style="font-size:12px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:#6A6F78;margin-bottom:14px;">Politici de autentificare</div>
+              <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;">
+                <div><div style="font-size:12px;font-weight:600;color:#6A6F78;text-transform:uppercase;letter-spacing:0.3px;margin-bottom:6px;">Durată sesiune (min)</div><input value="120" style="width:100%;border:1.5px solid #E8E9EC;border-radius:12px;padding:10px 12px;font-size:14px;font-family:'Plus Jakarta Sans',sans-serif;background:#FBFAF8;outline:none;" /></div>
+                <div><div style="font-size:12px;font-weight:600;color:#6A6F78;text-transform:uppercase;letter-spacing:0.3px;margin-bottom:6px;">Lungime minimă parolă</div><input value="8" style="width:100%;border:1.5px solid #E8E9EC;border-radius:12px;padding:10px 12px;font-size:14px;font-family:'Plus Jakarta Sans',sans-serif;background:#FBFAF8;outline:none;" /></div>
+                <div><div style="font-size:12px;font-weight:600;color:#6A6F78;text-transform:uppercase;letter-spacing:0.3px;margin-bottom:6px;">Tentative până la blocare</div><input value="5" style="width:100%;border:1.5px solid #E8E9EC;border-radius:12px;padding:10px 12px;font-size:14px;font-family:'Plus Jakarta Sans',sans-serif;background:#FBFAF8;outline:none;" /></div>
+              </div>
+              <button style="margin-top:16px;background:#FF6B1A;color:#fff;font-weight:700;font-size:13px;border:none;border-radius:12px;padding:10px 16px;cursor:pointer;box-shadow:0 4px 12px rgba(255,107,26,0.28);">Salvează politica</button>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ isAudit }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;flex-direction:column;gap:16px;">
+            <div style="background:#fff;border:1px solid #E8E9EC;border-radius:16px;box-shadow:0 1px 4px rgba(14,17,22,0.06);padding:18px 20px;display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
+              <div><div style="font-size:12px;font-weight:600;color:#6A6F78;text-transform:uppercase;letter-spacing:0.3px;margin-bottom:6px;">Acțiune conține</div><input placeholder="ex: LOGIN_FAILED" style="width:180px;border:1.5px solid #E8E9EC;border-radius:12px;padding:10px 12px;font-size:13px;font-family:'Plus Jakarta Sans',sans-serif;background:#FBFAF8;outline:none;" /></div>
+              <div><div style="font-size:12px;font-weight:600;color:#6A6F78;text-transform:uppercase;letter-spacing:0.3px;margin-bottom:6px;">Resursă conține</div><input placeholder="ex: user:" style="width:150px;border:1.5px solid #E8E9EC;border-radius:12px;padding:10px 12px;font-size:13px;font-family:'Plus Jakarta Sans',sans-serif;background:#FBFAF8;outline:none;" /></div>
+              <div><div style="font-size:12px;font-weight:600;color:#6A6F78;text-transform:uppercase;letter-spacing:0.3px;margin-bottom:6px;">Status</div><div style="width:120px;border:1.5px solid #E8E9EC;border-radius:12px;padding:10px 12px;font-size:13px;color:#3C4149;background:#FBFAF8;">Toate</div></div>
+              <button style="background:#FF6B1A;color:#fff;font-weight:700;font-size:13px;border:none;border-radius:12px;padding:11px 18px;cursor:pointer;box-shadow:0 4px 12px rgba(255,107,26,0.28);">Filtrează</button>
+            </div>
+            <div style="background:#fff;border:1px solid #E8E9EC;border-radius:16px;box-shadow:0 1px 4px rgba(14,17,22,0.06);overflow:hidden;">
+              <div style="padding:18px 20px 12px;font-size:12px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:#6A6F78;">8 evenimente</div>
+              <table style="border-collapse:collapse;width:100%;">
+                <thead>
+                  <tr>
+                    <th style="text-align:left;padding:8px 20px;font-size:11px;text-transform:uppercase;letter-spacing:0.6px;color:#6A6F78;border-bottom:1px solid #E8E9EC;">Data</th>
+                    <th style="text-align:left;padding:8px 20px;font-size:11px;text-transform:uppercase;letter-spacing:0.6px;color:#6A6F78;border-bottom:1px solid #E8E9EC;">Acțiune</th>
+                    <th style="text-align:left;padding:8px 20px;font-size:11px;text-transform:uppercase;letter-spacing:0.6px;color:#6A6F78;border-bottom:1px solid #E8E9EC;">Resursă</th>
+                    <th style="text-align:left;padding:8px 20px;font-size:11px;text-transform:uppercase;letter-spacing:0.6px;color:#6A6F78;border-bottom:1px solid #E8E9EC;">Utilizator</th>
+                    <th style="text-align:right;padding:8px 20px;font-size:11px;text-transform:uppercase;letter-spacing:0.6px;color:#6A6F78;border-bottom:1px solid #E8E9EC;">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <sc-for list="{{ auditLogs }}" as="l" hint-placeholder-count="8">
+                    <tr>
+                      <td style="padding:12px 20px;font-size:13px;color:#3C4149;border-bottom:1px solid #F2F3F5;">{{ l.date }}</td>
+                      <td style="padding:12px 20px;font-size:13px;font-weight:600;color:#0E1116;border-bottom:1px solid #F2F3F5;">{{ l.action }}</td>
+                      <td style="padding:12px 20px;font-size:13px;color:#6A6F78;border-bottom:1px solid #F2F3F5;">{{ l.res }}</td>
+                      <td style="padding:12px 20px;font-size:13px;color:#3C4149;border-bottom:1px solid #F2F3F5;">{{ l.user }}</td>
+                      <td style="padding:12px 20px;text-align:right;border-bottom:1px solid #F2F3F5;">{{ l.statusPill }}</td>
+                    </tr>
+                  </sc-for>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </sc-if>
+
+<sc-if value="{{ isSecurity }}" hint-placeholder-val="{{ false }}">
+          <div style="background:#fff;border:1px solid #E8E9EC;border-radius:16px;box-shadow:0 1px 4px rgba(14,17,22,0.06);padding:22px;max-width:560px;">
+            <div style="font-size:12px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:#6A6F78;margin-bottom:16px;">Autentificare în doi factori (TOTP)</div>
+            <span style="display:inline-flex;align-items:center;gap:6px;padding:4px 11px;border-radius:999px;background:#F2F3F5;color:#6A6F78;font-size:12px;font-weight:700;margin-bottom:14px;">🔓 Inactiv</span>
+            <p style="color:#3C4149;font-size:14px;line-height:1.5;margin:0 0 18px;">Adaugă un al doilea factor de autentificare cu o aplicație precum Google Authenticator sau Microsoft Authenticator, pentru un plus de securitate al contului instituțional.</p>
+            <div style="display:flex;gap:20px;align-items:center;padding:18px;background:#FBFAF8;border:1px solid #E8E9EC;border-radius:14px;margin-bottom:18px;">
+              <div style="width:120px;height:120px;border-radius:12px;background:#fff;border:1px solid #E8E9EC;display:flex;align-items:center;justify-content:center;font-size:48px;flex-shrink:0;">▦</div>
+              <div>
+                <div style="font-size:13px;color:#3C4149;margin-bottom:8px;">Scanează codul QR din aplicația de autentificare, apoi introdu codul generat.</div>
+                <div style="font-size:12px;color:#6A6F78;">Sau introdu manual: <code style="font-weight:700;color:#0E1116;">JBSW Y3DP EHPK 3PXP</code></div>
+              </div>
+            </div>
+            <button style="background:#FF6B1A;color:#fff;font-weight:700;font-size:14px;border:none;border-radius:12px;padding:11px 18px;cursor:pointer;box-shadow:0 6px 16px rgba(255,107,26,0.40);">Activează 2FA</button>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ isSecrets }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;flex-direction:column;gap:16px;">
+            <div style="background:#fff;border:1px solid #E8E9EC;border-radius:16px;box-shadow:0 1px 4px rgba(14,17,22,0.06);padding:20px;">
+              <div style="font-size:12px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:#6A6F78;margin-bottom:14px;">Secret nou / actualizare</div>
+              <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:12px;align-items:end;">
+                <div><div style="font-size:12px;font-weight:600;color:#6A6F78;text-transform:uppercase;letter-spacing:0.3px;margin-bottom:6px;">Cheie</div><input placeholder="ex: OPENAI_API_KEY" style="width:100%;border:1.5px solid #E8E9EC;border-radius:12px;padding:10px 12px;font-size:14px;font-family:'Plus Jakarta Sans',sans-serif;background:#FBFAF8;outline:none;" /></div>
+                <div><div style="font-size:12px;font-weight:600;color:#6A6F78;text-transform:uppercase;letter-spacing:0.3px;margin-bottom:6px;">Valoare</div><input type="password" placeholder="••••••••" style="width:100%;border:1.5px solid #E8E9EC;border-radius:12px;padding:10px 12px;font-size:14px;font-family:'Plus Jakarta Sans',sans-serif;background:#FBFAF8;outline:none;" /></div>
+                <button style="background:#FF6B1A;color:#fff;font-weight:700;font-size:13px;border:none;border-radius:12px;padding:11px 18px;cursor:pointer;box-shadow:0 4px 12px rgba(255,107,26,0.28);">Salvează</button>
+              </div>
+            </div>
+            <div style="background:#fff;border:1px solid #E8E9EC;border-radius:16px;box-shadow:0 1px 4px rgba(14,17,22,0.06);overflow:hidden;">
+              <div style="padding:18px 20px 12px;font-size:12px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:#6A6F78;">4 secrete stocate</div>
+              <table style="border-collapse:collapse;width:100%;">
+                <thead>
+                  <tr>
+                    <th style="text-align:left;padding:8px 20px;font-size:11px;text-transform:uppercase;letter-spacing:0.6px;color:#6A6F78;border-bottom:1px solid #E8E9EC;">Cheie</th>
+                    <th style="text-align:left;padding:8px 20px;font-size:11px;text-transform:uppercase;letter-spacing:0.6px;color:#6A6F78;border-bottom:1px solid #E8E9EC;">Actualizat</th>
+                    <th style="text-align:right;padding:8px 20px;font-size:11px;text-transform:uppercase;letter-spacing:0.6px;color:#6A6F78;border-bottom:1px solid #E8E9EC;"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <sc-for list="{{ secrets }}" as="s" hint-placeholder-count="4">
+                    <tr>
+                      <td style="padding:13px 20px;font-size:13px;font-weight:600;color:#0E1116;border-bottom:1px solid #F2F3F5;font-family:'Plus Jakarta Sans',monospace;">{{ s.key }}</td>
+                      <td style="padding:13px 20px;font-size:13px;color:#3C4149;border-bottom:1px solid #F2F3F5;">{{ s.updated }}</td>
+                      <td style="padding:13px 20px;text-align:right;border-bottom:1px solid #F2F3F5;"><button style="background:#F2F3F5;color:#3C4149;font-weight:700;font-size:12px;border:none;border-radius:10px;padding:6px 12px;cursor:pointer;">⬇ Manifest K8s</button></td>
+                    </tr>
+                  </sc-for>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ isFormbuilder }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;flex-direction:column;gap:16px;">
+            <div><button style="background:#FF6B1A;color:#fff;font-weight:700;font-size:14px;border:none;border-radius:12px;padding:11px 18px;cursor:pointer;box-shadow:0 6px 16px rgba(255,107,26,0.40);">＋ Șablon nou</button></div>
+            <div style="font-size:12px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:#6A6F78;">4 șabloane</div>
+            <div style="display:flex;flex-direction:column;gap:12px;">
+              <sc-for list="{{ templatesList }}" as="f" hint-placeholder-count="4">
+                <div style="background:#fff;border:1px solid #E8E9EC;border-radius:16px;box-shadow:0 1px 4px rgba(14,17,22,0.06);padding:18px 20px;display:flex;align-items:center;justify-content:space-between;gap:16px;">
+                  <div>
+                    <div style="display:flex;gap:8px;align-items:center;margin-bottom:4px;">
+                      <span style="font-size:15px;font-weight:700;color:#0E1116;">{{ f.name }}</span>{{ f.typePill }}
+                    </div>
+                    <div style="font-size:12.5px;color:#6A6F78;">categorie: {{ f.cat }} · {{ f.fields }} câmpuri</div>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
+                    {{ f.statusPill }}
+                    <button style="background:#F2F3F5;color:#3C4149;font-weight:700;font-size:12px;border:none;border-radius:10px;padding:8px 13px;cursor:pointer;">Editează</button>
+                    <button style="background:#F2F3F5;color:#3C4149;font-weight:700;font-size:12px;border:none;border-radius:10px;padding:8px 13px;cursor:pointer;">{{ f.pubAction }}</button>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </sc-if>
+
+<sc-if value="{{ isWorkflow }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;flex-direction:column;gap:16px;">
+            <div><button style="background:#FF6B1A;color:#fff;font-weight:700;font-size:14px;border:none;border-radius:12px;padding:11px 18px;cursor:pointer;box-shadow:0 6px 16px rgba(255,107,26,0.40);">＋ Flux de lucru nou</button></div>
+
+            <div style="font-size:12px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:#6A6F78;">4 fluxuri configurate</div>
+            <div style="display:flex;flex-direction:column;gap:12px;">
+              <sc-for list="{{ workflows }}" as="w" hint-placeholder-count="4">
+                <div style="background:#fff;border:1px solid #E8E9EC;border-radius:16px;box-shadow:0 1px 4px rgba(14,17,22,0.06);padding:16px 20px;display:flex;align-items:center;justify-content:space-between;gap:16px;">
+                  <div style="display:flex;align-items:center;gap:14px;">
+                    <div style="width:44px;height:44px;border-radius:12px;background:#FFF1E8;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;">{{ w.emoji }}</div>
+                    <div>
+                      <div style="font-size:15px;font-weight:700;color:#0E1116;">{{ w.name }}</div>
+                      <div style="font-size:12.5px;color:#6A6F78;margin-top:2px;">categorie: {{ w.cat }} · {{ w.tags }}</div>
+                    </div>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
+                    {{ w.visPill }}{{ w.activePill }}
+                    <button style="background:#F2F3F5;color:#3C4149;font-weight:700;font-size:12px;border:none;border-radius:10px;padding:8px 13px;cursor:pointer;">Editează</button>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+
+            <div style="background:#fff;border:1px solid #E8E9EC;border-radius:16px;box-shadow:0 1px 4px rgba(14,17,22,0.06);padding:20px;">
+              <div style="font-size:12px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:#6A6F78;margin-bottom:14px;">Stări globale — nomenclator unic pe platformă</div>
+              <div style="display:flex;flex-wrap:wrap;gap:8px;">
+                <sc-for list="{{ wfStates }}" as="s" hint-placeholder-count="6">
+                  <span style="display:inline-flex;align-items:center;gap:7px;padding:7px 12px;border-radius:999px;background:#F2F3F5;">
+                    <span style="width:9px;height:9px;border-radius:999px;background:{{ s.color }};"></span>
+                    <span style="font-size:12.5px;font-weight:700;color:#0E1116;">{{ s.name }}</span>
+                    <span style="font-size:11px;color:#6A6F78;">({{ s.cat }})</span>
+                  </span>
+                </sc-for>
+              </div>
+            </div>
+
+            <div style="background:#fff;border:1px solid #E8E9EC;border-radius:16px;box-shadow:0 1px 4px rgba(14,17,22,0.06);padding:20px;">
+              <div style="font-size:12px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:#6A6F78;margin-bottom:16px;">Graful fluxului „Finanțare cluburi sportive”</div>
+              <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;background:#FBFAF8;border:1px solid #E8E9EC;border-radius:14px;padding:22px;">
+                <sc-for list="{{ wfGraph }}" as="n" hint-placeholder-count="4">
+                  <div style="display:flex;align-items:center;gap:6px;">
+                    <div style="display:flex;align-items:center;gap:8px;background:#fff;border:2px solid #FF6B1A;border-radius:12px;padding:10px 14px;">
+                      <span style="width:8px;height:8px;border-radius:999px;background:#FF6B1A;"></span>
+                      <span style="font-size:12.5px;font-weight:700;color:#0E1116;">{{ n.name }}</span>
+                    </div>
+                    <span style="color:#FF6B1A;font-size:18px;font-weight:700;">{{ n.arrowChar }}</span>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ isBi }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;gap:0;margin-bottom:22px;border-bottom:1px solid #E8E9EC;">
+            <sc-for list="{{ biTabs }}" as="tb" hint-placeholder-count="4">
+              <button onClick="{{ tb.onClick }}" style="{{ tb.tstyle }}">{{ tb.label }}</button>
+            </sc-for>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px;">
+            <sc-for list="{{ biKpis }}" as="k" hint-placeholder-count="4">
+              <div style="background:#fff;border:1px solid #E8E9EC;border-radius:16px;box-shadow:0 1px 4px rgba(14,17,22,0.06);padding:18px;">
+                <div style="font-size:11.5px;color:#6A6F78;text-transform:uppercase;letter-spacing:0.4px;margin-bottom:8px;">{{ k.label }}</div>
+                <div style="font-family:'Bricolage Grotesque',sans-serif;font-size:30px;font-weight:700;color:{{ k.color }};">{{ k.value }}</div>
+              </div>
+            </sc-for>
+          </div>
+          <div style="background:#fff;border:1px solid #E8E9EC;border-radius:16px;box-shadow:0 1px 4px rgba(14,17,22,0.06);padding:20px;margin-bottom:20px;">
+            <div style="font-size:12px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:#6A6F78;margin-bottom:20px;">Cereri pe categorie</div>
+            <div style="display:flex;align-items:flex-end;gap:26px;height:200px;padding:0 8px;">
+              <sc-for list="{{ biBars }}" as="b" hint-placeholder-count="5">
+                <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:8px;height:100%;justify-content:flex-end;">
+                  <div style="font-size:13px;font-weight:700;color:#0E1116;">{{ b.v }}</div>
+                  <div style="width:100%;max-width:56px;height:{{ b.h }}%;background:#FF6B1A;border-radius:8px 8px 0 0;"></div>
+                  <div style="font-size:12px;color:#6A6F78;">{{ b.label }}</div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+          <div style="background:#fff;border:1px solid #E8E9EC;border-radius:16px;box-shadow:0 1px 4px rgba(14,17,22,0.06);padding:20px;">
+            <div style="font-size:12px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:#6A6F78;margin-bottom:14px;">Rapoarte salvate</div>
+            <div style="display:flex;flex-direction:column;gap:10px;">
+              <sc-for list="{{ savedReports }}" as="r" hint-placeholder-count="2">
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;border:1px solid #E8E9EC;border-radius:12px;padding:14px 16px;">
+                  <div>
+                    <div style="font-size:14px;font-weight:700;color:#0E1116;">{{ r.title }}</div>
+                    <div style="font-size:12.5px;color:#6A6F78;margin-top:2px;">„{{ r.q }}”</div>
+                  </div>
+                  <button style="background:#F2F3F5;color:#3C4149;font-weight:700;font-size:12px;border:none;border-radius:10px;padding:8px 13px;cursor:pointer;flex-shrink:0;">Vezi date live</button>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </sc-if>
+
+        <!--MORE-->
+
+      </div>
+    </main>
+  </div>
+</div>
+</sc-if>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;sidebarCollapsed&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Layout&quot;}}">
+class Component extends DCLogic {
+  state = { screen: "dashboard", portalTab: "forms", biTab: "compliance" };
+
+  go(s) { this.setState({ screen: s }); if (typeof window !== "undefined") window.scrollTo(0, 0); }
+
+  pill(label, color, bg, opts) {
+    opts = opts || {};
+    return React.createElement("span", {
+      style: {
+        display: "inline-flex", alignItems: "center", gap: "5px",
+        padding: opts.big ? "5px 12px" : "3px 10px", borderRadius: "999px",
+        background: bg, color: color, fontSize: opts.big ? "12.5px" : "11.5px",
+        fontWeight: 700, fontFamily: "'Plus Jakarta Sans',sans-serif", whiteSpace: "nowrap",
+      },
+    }, label);
+  }
+
+  statusFor(days) {
+    if (days === null || days === undefined) return { label: "N/A", color: "#6A6F78", bg: "#F2F3F5" };
+    if (days < 0) return { label: "Expirat", color: "#E0432C", bg: "#FDECEA" };
+    if (days <= 14) return { label: days + "z", color: "#E0432C", bg: "#FDECEA" };
+    if (days <= 30) return { label: days + "z", color: "#E0A52C", bg: "#FDF6E3" };
+    return { label: days + "z", color: "#2F9E6F", bg: "#E8F5EE" };
+  }
+
+  renderVals() {
+    const screen = this.state.screen;
+    const isAuth = screen === "login" || screen === "register";
+    const collapsed = this.props.sidebarCollapsed ?? false;
+    const showLabels = !collapsed;
+
+    const logoMark = React.createElement("svg", { width: 30, height: 30, viewBox: "0 0 120 120", fill: "none" },
+      React.createElement("rect", { x: 14, y: 82, width: 92, height: 20, rx: 10, fill: "#FF6B1A" }),
+      React.createElement("rect", { x: 34, y: 54, width: 52, height: 10, rx: 5, fill: "#FF6B1A", opacity: 0.55 }),
+      React.createElement("circle", { cx: 60, cy: 30, r: 5, fill: "#FF6B1A" })
+    );
+
+    const navDefs = [
+      { key: "dashboard", emoji: "🏠", label: "Panou principal" },
+      { key: "portal", emoji: "🌐", label: "Portal servicii" },
+      { key: "registratura", emoji: "📥", label: "Registratură" },
+      { key: "formbuilder", emoji: "📋", label: "Editor șabloane" },
+      { key: "workflow", emoji: "🔀", label: "Configurare flux" },
+      { key: "bi", emoji: "📊", label: "Business Intelligence" },
+      { key: "users", emoji: "👥", label: "Utilizatori" },
+      { key: "audit", emoji: "📜", label: "Jurnal de audit" },
+      { key: "security", emoji: "🛡️", label: "Securitate" },
+      { key: "secrets", emoji: "🔑", label: "Secrete" },
+    ];
+    const activeKey = screen === "request" ? "registratura" : screen;
+    const nav = navDefs.map((n) => {
+      const active = activeKey === n.key;
+      return {
+        ...n,
+        active,
+        onClick: () => this.go(n.key),
+        labelStyle: collapsed ? "display:none" : "display:inline",
+        navStyle: [
+          "display:flex", "align-items:center", "gap:12px",
+          collapsed ? "justify-content:center" : "",
+          "padding:10px 14px", "margin:0 12px", "border-radius:12px",
+          "cursor:pointer", "font-size:14px", "font-weight:600",
+          "color:" + (active ? "#fff" : "rgba(255,255,255,0.6)"),
+          "background:" + (active ? "rgba(255,255,255,0.10)" : "transparent"),
+          active ? "box-shadow:inset 3px 0 0 #FF6B1A" : "",
+          "transition:background .15s ease,color .15s ease",
+        ].filter(Boolean).join(";"),
+      };
+    });
+
+    const titles = {
+      dashboard: ["Bună ziua, Andrei", "Platforma digitală integrată — Agenția Națională pentru Sport"],
+      portal: ["Portal servicii ANS", "Formulare publicate și cererile tale"],
+      registratura: ["Registratură electronică", "Cereri înregistrate din Portal, cu termene și status de procesare"],
+      request: ["Cerere 2024-CIS-0417", "Depusă de Clubul Sportiv Municipal Brașov (contact@csmbrasov.ro)"],
+      formbuilder: ["Editor de șabloane", "Formulare de cerere, documente interne și externe — configurabile, fără cod"],
+      workflow: ["Configurare flux de lucru", "Motor pe stări și tranziții — validări, acțiuni și declanșatori"],
+      bi: ["Business Intelligence", "Dashboard-uri analitice, interogare în limbaj natural și rapoarte reutilizabile"],
+      users: ["Administrare utilizatori", "Gestionare conturi, roluri, grupuri și politici de acces"],
+      audit: ["Jurnal de audit", "Istoric imuabil al acțiunilor din sistem"],
+      security: ["Securitate", "Autentificare în doi factori (2FA) pentru contul tău"],
+      secrets: ["Secret Manager", "Chei API, certificate și credențiale — stocare criptată (AES-256-GCM)"],
+    };
+    const t = titles[screen] || ["", ""];
+
+    return {
+      isAuth,
+      isLogin: screen === "login",
+      isRegister: screen === "register",
+      isApp: !isAuth,
+      logoMark,
+      nav,
+      showLabels,
+      sidebarWidth: collapsed ? "72px" : "236px",
+      labelStyle: collapsed ? "display:none" : "display:inline",
+      pageTitle: t[0],
+      pageSubtitle: t[1],
+      login: () => this.go("dashboard"),
+      logout: () => this.go("login"),
+      goLogin: () => this.go("login"),
+      goRegister: () => this.go("register"),
+      goAudit: () => this.go("audit"),
+      goBack: () => this.go("registratura"),
+      user: { name: "Andrei Popescu", role: "ADMIN INSTITUȚIE", initials: "AP" },
+
+      // dashboard
+      isDashboard: screen === "dashboard",
+      heroNavy: (this.props.heroStyle ?? "navy") === "navy",
+      stats: [
+        { label: "Conturi totale", value: "128" },
+        { label: "Conturi active", value: "112" },
+        { label: "Cereri în lucru", value: "37" },
+        { label: "Termene depășite", value: "4" },
+      ],
+      recentEvents: [
+        { date: "17 mai, 09:42", action: "REQUEST_REGISTERED", ok: true },
+        { date: "17 mai, 09:18", action: "RESPONSE_SIGNED", ok: true },
+        { date: "16 mai, 17:05", action: "EMPLOYEE_INVITED", ok: true },
+        { date: "16 mai, 14:30", action: "LOGIN_FAILED", ok: false },
+        { date: "16 mai, 11:12", action: "WORKFLOW_TRANSITION", ok: true },
+        { date: "15 mai, 16:48", action: "FORM_PUBLISHED", ok: true },
+      ].map((e) => ({ ...e, statusPill: e.ok ? this.pill("OK", "#2F9E6F", "#E8F5EE") : this.pill("Eșuat", "#E0432C", "#FDECEA") })),
+      quickActions: [
+        { emoji: "📥", label: "Registratură", desc: "8 cereri noi azi", key: "registratura" },
+        { emoji: "📋", label: "Șablon nou", desc: "Editor formulare", key: "formbuilder" },
+        { emoji: "📊", label: "Rapoarte BI", desc: "Analitice live", key: "bi" },
+        { emoji: "👥", label: "Utilizatori", desc: "128 conturi", key: "users" },
+      ].map((q) => ({ ...q, onClick: () => this.go(q.key) })),
+
+      // portal
+      isPortal: screen === "portal",
+      portalTab: this.state.portalTab,
+      showForms: this.state.portalTab === "forms",
+      showMine: this.state.portalTab === "mine",
+      setForms: () => this.setState({ portalTab: "forms" }),
+      setMine: () => this.setState({ portalTab: "mine" }),
+      formsDisplay: this.state.portalTab === "forms" ? "display:block" : "display:none",
+      mineDisplay: this.state.portalTab === "mine" ? "display:block" : "display:none",
+      tabFormsStyle: this.tabStyle(this.state.portalTab === "forms"),
+      tabMineStyle: this.tabStyle(this.state.portalTab === "mine"),
+      forms: [
+        { name: "Cerere finanțare cluburi sportive", desc: "Program anual de finanțare nerambursabilă pentru structuri sportive" },
+        { name: "Solicitare acreditare federație", desc: "Recunoaștere și acreditare a structurilor sportive naționale" },
+        { name: "Înscriere eveniment în calendarul competițional", desc: "Calendar sportiv național 2024" },
+        { name: "Sesizare / reclamație", desc: "Semnalează o neregulă către Agenția Națională pentru Sport" },
+      ].map((f) => ({ ...f, onClick: () => this.go("request") })),
+      myRequests: [
+        { nr: "2024-CIS-0417", form: "Cerere finanțare cluburi sportive", date: "12 mai 2024", statePill: this.pill("În verificare", "#0369A1", "#E0F2FE"), extra: this.pill("Răspuns în lucru", "#6A6F78", "#F2F3F5") },
+        { nr: "2024-ACR-0092", form: "Solicitare acreditare federație", date: "28 apr 2024", statePill: this.pill("Finalizat", "#2F9E6F", "#E8F5EE"), extra: this.pill("Răspuns disponibil", "#2F9E6F", "#E8F5EE") },
+      ].map((r) => ({ ...r, onClick: () => this.go("request") })),
+
+      // registratura
+      isRegistratura: screen === "registratura",
+      requests: [
+        { nr: "2024-CIS-0417", petent: "CSM Brașov", cat: "Finanțare", status: ["În lucru", "#7C3AED", "#F1EAFD"], termen: 9, wf: "În verificare" },
+        { nr: "2024-ACR-0092", petent: "Federația Română de Judo", cat: "Acreditare", status: ["Finalizat", "#2F9E6F", "#E8F5EE"], termen: 41, wf: "Semnat" },
+        { nr: "2024-EVT-0311", petent: "Primăria Cluj-Napoca", cat: "Eveniment", status: ["Nou", "#0369A1", "#E0F2FE"], termen: 3, wf: "Înregistrat" },
+        { nr: "2024-SES-0188", petent: "Ionescu Maria", cat: "Sesizare", status: ["În așteptare", "#E0A52C", "#FDF6E3"], termen: -2, wf: "La clarificări" },
+        { nr: "2024-CIS-0402", petent: "ACS Viitorul Iași", cat: "Finanțare", status: ["Respins", "#E0432C", "#FDECEA"], termen: null, wf: "Închis" },
+        { nr: "2024-EVT-0305", petent: "CS Dinamo", cat: "Eveniment", status: ["În lucru", "#7C3AED", "#F1EAFD"], termen: 22, wf: "În verificare" },
+      ].map((r) => {
+        const st = this.statusFor(r.termen);
+        return {
+          ...r,
+          onClick: () => this.go("request"),
+          statusPill: this.pill(r.status[0], r.status[1], r.status[2]),
+          termenPill: this.pill(st.label, st.color, st.bg),
+          wfPill: this.pill(r.wf, "#3C4149", "#F2F3F5"),
+        };
+      }),
+
+      // request detail
+      isRequest: screen === "request",
+      requestData: [
+        ["Denumire solicitant", "Clubul Sportiv Municipal Brașov"],
+        ["CUI", "RO 14785236"],
+        ["Reprezentant legal", "Vasile Georgescu"],
+        ["Disciplină sportivă", "Baschet"],
+        ["Sumă solicitată", "185.000 RON"],
+        ["An competițional", "2024"],
+      ],
+      wfEvents: [
+        { txt: "START → Înregistrat · Registratură · Andrei Popescu · 12 mai, 09:42" },
+        { txt: "Înregistrat → În verificare · Repartizare evaluator · automat · 12 mai, 09:43" },
+      ],
+      wfTransitions: ["Aprobă și generează răspuns", "Solicită clarificări", "Respinge cererea"],
+      currentStatePill: this.pill("În verificare", "#0369A1", "#E0F2FE", { big: true }),
+      wfDeadlinePill: this.pill("Termen flux: 9z", "#2F9E6F", "#E8F5EE"),
+
+      // users
+      isUsers: screen === "users",
+      usersList: [
+        { email: "administrator@ans.ro", name: "Andrei Popescu", role: "ADMIN INSTITUȚIE", active: true },
+        { email: "moderator@ans.ro", name: "Elena Dumitru", role: "MODERATOR", active: true },
+        { email: "evaluator1@ans.ro", name: "Mihai Radu", role: "EVALUATOR", active: true },
+        { email: "evaluator2@ans.ro", name: "Cristina Nagy", role: "EVALUATOR", active: false },
+        { email: "autor@ans.ro", name: "Dan Ilie", role: "AUTOR", active: true },
+        { email: "office@csmbrasov.ro", name: "CSM Brașov", role: "UTILIZATOR STANDARD", active: true },
+      ].map((u) => ({
+        ...u,
+        rolePill: this.pill(u.role, ["ADMIN INSTITUȚIE"].includes(u.role) ? "#e85a0c" : u.role === "MODERATOR" ? "#E0A52C" : u.role === "EVALUATOR" ? "#2F9E6F" : "#6A6F78", ["ADMIN INSTITUȚIE"].includes(u.role) ? "#FFF1E8" : u.role === "MODERATOR" ? "#FDF6E3" : u.role === "EVALUATOR" ? "#E8F5EE" : "#F2F3F5"),
+        statusPill: u.active ? this.pill("Activ", "#2F9E6F", "#E8F5EE") : this.pill("Blocat", "#E0432C", "#FDECEA"),
+      })),
+      groups: [
+        { name: "Registratură", members: "Elena Dumitru, Dan Ilie" },
+        { name: "Evaluatori finanțare", members: "Mihai Radu, Cristina Nagy" },
+      ],
+
+      // audit
+      isAudit: screen === "audit",
+      auditLogs: [
+        { date: "17 mai, 09:42", action: "REQUEST_REGISTERED", res: "request:0417", user: "system", ok: true },
+        { date: "17 mai, 09:18", action: "RESPONSE_SIGNED", res: "response:0092", user: "andrei@ans.ro", ok: true },
+        { date: "16 mai, 17:05", action: "EMPLOYEE_INVITED", res: "user:evaluator2", user: "andrei@ans.ro", ok: true },
+        { date: "16 mai, 14:30", action: "LOGIN_FAILED", res: "auth", user: "necunoscut", ok: false },
+        { date: "16 mai, 11:12", action: "WORKFLOW_TRANSITION", res: "case:0311", user: "mihai@ans.ro", ok: true },
+        { date: "15 mai, 16:48", action: "FORM_PUBLISHED", res: "form:cis", user: "andrei@ans.ro", ok: true },
+        { date: "15 mai, 10:03", action: "SECRET_UPDATED", res: "OPENAI_API_KEY", user: "andrei@ans.ro", ok: true },
+        { date: "14 mai, 08:57", action: "LOGIN_SUCCESS", res: "auth", user: "elena@ans.ro", ok: true },
+      ].map((l) => ({ ...l, statusPill: l.ok ? this.pill("OK", "#2F9E6F", "#E8F5EE") : this.pill("Eșuat", "#E0432C", "#FDECEA") })),
+
+      // form builder
+      isFormbuilder: screen === "formbuilder",
+      templatesList: [
+        { name: "Cerere finanțare cluburi sportive", type: "Formular cerere", cat: "cis", fields: 14, pub: true },
+        { name: "Solicitare acreditare federație", type: "Formular cerere", cat: "acr", fields: 11, pub: true },
+        { name: "Adeverință finanțare aprobată", type: "Document extern", cat: "cis", fields: 6, pub: true },
+        { name: "Notă internă de repartizare", type: "Document intern", cat: "general", fields: 4, pub: false },
+      ].map((f) => ({
+        ...f,
+        typePill: this.pill(f.type, "#3C4149", "#F2F3F5"),
+        statusPill: f.pub ? this.pill("Publicat", "#2F9E6F", "#E8F5EE") : this.pill("Ciornă", "#E0A52C", "#FDF6E3"),
+        pubAction: f.pub ? "Retrage" : "Publică",
+      })),
+
+      // workflow
+      isWorkflow: screen === "workflow",
+      workflows: [
+        { emoji: "💶", name: "Finanțare cluburi sportive", cat: "cis", vis: "Public", active: true, tags: "publice, urgent" },
+        { emoji: "🏅", name: "Acreditare federații", cat: "acr", vis: "Privat", active: true, tags: "intern" },
+        { emoji: "📅", name: "Înscriere evenimente", cat: "evt", vis: "Public", active: true, tags: "calendar" },
+        { emoji: "⚠️", name: "Gestionare sesizări", cat: "ses", vis: "Privat", active: false, tags: "reclamații" },
+      ].map((w) => ({
+        ...w,
+        visPill: this.pill(w.vis, w.vis === "Public" ? "#0369A1" : "#6A6F78", w.vis === "Public" ? "#E0F2FE" : "#F2F3F5"),
+        activePill: w.active ? this.pill("Activ", "#2F9E6F", "#E8F5EE") : this.pill("Inactiv", "#6A6F78", "#F2F3F5"),
+      })),
+      wfStates: [
+        { name: "Înregistrat", color: "#0369A1", cat: "De făcut" },
+        { name: "În verificare", color: "#7C3AED", cat: "În progres" },
+        { name: "La clarificări", color: "#E0A52C", cat: "În progres" },
+        { name: "Aprobat", color: "#2F9E6F", cat: "Finalizat" },
+        { name: "Respins", color: "#E0432C", cat: "Finalizat" },
+        { name: "Arhivat", color: "#6A6F78", cat: "Arhivat" },
+      ],
+      wfGraph: ["START", "Înregistrat", "În verificare", "Aprobat"].map((n, i, a) => ({ name: n, arrowChar: i < a.length - 1 ? "→" : "" })),
+
+      // bi
+      isBi: screen === "bi",
+      biTab: this.state.biTab,
+      biTabs: [
+        { key: "compliance", label: "Conformitate / Termene" },
+        { key: "documents", label: "Flux documente" },
+        { key: "workload", label: "Volum de lucru" },
+        { key: "queries", label: "Interogări & Rapoarte" },
+      ].map((tb) => ({ ...tb, active: this.state.biTab === tb.key, onClick: () => this.setState({ biTab: tb.key }), tstyle: this.biTabStyle(this.state.biTab === tb.key) })),
+      biKpis: [
+        { label: "Cereri active", value: "37", color: "#0369A1" },
+        { label: "Rezolvate la timp", value: "94%", color: "#2F9E6F" },
+        { label: "Termene apropiate", value: "6", color: "#E0A52C" },
+        { label: "Depășite", value: "4", color: "#E0432C" },
+      ],
+      biBars: [
+        { label: "Finanțare", h: 78, v: 24 },
+        { label: "Acreditare", h: 52, v: 16 },
+        { label: "Evenimente", h: 96, v: 30 },
+        { label: "Sesizări", h: 40, v: 12 },
+        { label: "Altele", h: 28, v: 9 },
+      ],
+      savedReports: [
+        { title: "Categorii cu cele mai multe întârzieri", q: "Care categorie are cele mai multe întârzieri?" },
+        { title: "Volum lunar de cereri 2024", q: "Câte cereri s-au înregistrat pe lună anul acesta?" },
+      ],
+
+      // secrets
+      isSecrets: screen === "secrets",
+      secrets: [
+        { key: "OPENAI_API_KEY", updated: "15 mai 2024, 10:03" },
+        { key: "SMTP_PASSWORD", updated: "02 mai 2024, 14:20" },
+        { key: "EIDAS_CLIENT_SECRET", updated: "18 apr 2024, 09:11" },
+        { key: "SIGN_CERT_PFX", updated: "10 apr 2024, 16:45" },
+      ],
+    };
+  }
+
+  tabStyle(active) {
+    return ["padding:8px 16px", "border-radius:999px", "border:none", "cursor:pointer",
+      "font-family:'Plus Jakarta Sans',sans-serif", "font-weight:700", "font-size:13px",
+      "background:" + (active ? "#172027" : "#F2F3F5"), "color:" + (active ? "#fff" : "#3C4149")].join(";");
+  }
+  biTabStyle(active) {
+    return ["border:none", "background:none", "padding:8px 4px", "margin-right:18px",
+      "font-family:'Plus Jakarta Sans',sans-serif", "font-size:13px", "font-weight:700", "cursor:pointer",
+      "color:" + (active ? "#FF6B1A" : "#6A6F78"),
+      "border-bottom:" + (active ? "2px solid #FF6B1A" : "2px solid transparent")].join(";");
+  }
+}
+</script>
+</body>
+</html>

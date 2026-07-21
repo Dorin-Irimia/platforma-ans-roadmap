@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&display=swap">
+<style>
+  .fbe * { box-sizing: border-box; }
+  .fbe input, .fbe select, .fbe textarea { font-family: 'Plus Jakarta Sans', sans-serif; }
+  .fbe input:focus, .fbe select:focus, .fbe textarea:focus { border-color: #FF6B1A !important; background: #FFF1E8 !important; outline: none; }
+</style>
+</helmet>
+<div class="fbe" style="font-family:'Plus Jakarta Sans',sans-serif;color:#0E1116;">{{ tree }}</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = {
+    mode: "edit",
+    values: {},
+    pvMsg: null,
+    saveMsg: null,
+    docCfg: { header: true, showEmpty: false, footer: true, sigPos: "right" },
+    openPath: "s0-f0",
+    picker: null,
+    form: {
+      templateType: "REQUEST_FORM",
+      name: "Cerere finanțare cluburi sportive",
+      category: "cis",
+      title: "Cerere de finanțare nerambursabilă",
+      subtitle: "Program anual pentru structuri sportive",
+      description: "Formular public pentru solicitarea finanțării din bugetul ANS.",
+      sections: [
+        { name: "Date solicitant", fields: [
+          { key: "denumire", type: "TEXT", internalTitle: "Denumire solicitant", label: "Denumirea structurii sportive", placeholder: "ex: CSM Brașov", helpText: "", required: true, disabled: false, readOnly: false, options: [], conditions: [] },
+          { key: "cui", type: "TEXT", internalTitle: "CUI", label: "Cod unic de înregistrare", placeholder: "RO ...", helpText: "Fără spații", required: true, disabled: false, readOnly: false, options: [], conditions: [] },
+          { key: "judet", type: "REGION", internalTitle: "Județ", label: "Județul de reședință", placeholder: "", helpText: "", required: true, disabled: false, readOnly: false, options: ["Brașov", "Cluj", "Iași", "București"], conditions: [] },
+        ] },
+        { name: "Detalii proiect", fields: [
+          { key: "disciplina", type: "DROPDOWN", internalTitle: "Disciplină", label: "Disciplina sportivă", placeholder: "Selectează...", helpText: "", required: true, disabled: false, readOnly: false, options: ["Baschet", "Fotbal", "Atletism", "Judo"], conditions: [] },
+          { key: "suma", type: "SHORT_NUMBER", internalTitle: "Sumă", label: "Suma solicitată (RON)", placeholder: "0", helpText: "Maxim 200.000 RON", required: true, disabled: false, readOnly: false, options: [], conditions: [] },
+          { key: "descriere_proiect", type: "LONG_TEXT", internalTitle: "Descriere proiect", label: "Descrierea proiectului", placeholder: "Obiective, activități, rezultate...", helpText: "", required: false, disabled: false, readOnly: false, options: [], conditions: [] },
+        ] },
+      ],
+      otherFields: [
+        { key: "acord_gdpr", type: "TOGGLE", internalTitle: "Acord GDPR", label: "Sunt de acord cu prelucrarea datelor", placeholder: "", helpText: "", required: true, disabled: false, readOnly: false, options: [], conditions: [] },
+      ],
+    },
+  };
+
+  CAT = [
+    { label: "Text", types: [["TEXT", "Text scurt"], ["LONG_TEXT", "Text lung"], ["EMAIL", "Email"], ["SHORT_NUMBER", "Număr"]] },
+    { label: "Alegere", types: [["DROPDOWN", "Listă derulantă"], ["RADIO", "Butoane radio"], ["MULTI_CHECKBOX", "Casete bifă"], ["TOGGLE", "Comutator"]] },
+    { label: "Dată & timp", types: [["DATE", "Dată"], ["DATETIME", "Dată și oră"], ["TIME", "Oră"]] },
+    { label: "Evaluare", types: [["STAR_RATING", "Rating stele"], ["SCALE", "Scală 1–10"]] },
+    { label: "Fișiere", types: [["FILE_UPLOAD", "Încărcare fișier"], ["CARD_EXTRACT_AI", "Extragere AI (CI)"]] },
+    { label: "Special", types: [["STATIC_TEXT", "Text static"], ["REGION", "Regiune (județ)"], ["MAP_POINT", "Punct pe hartă"]] },
+  ];
+  TYPE_LABEL = { TEXT: "Text scurt", LONG_TEXT: "Text lung", EMAIL: "Email", SHORT_NUMBER: "Număr", DROPDOWN: "Listă derulantă", RADIO: "Butoane radio", MULTI_CHECKBOX: "Casete bifă", TOGGLE: "Comutator", DATE: "Dată", DATETIME: "Dată și oră", TIME: "Oră", STAR_RATING: "Rating stele", SCALE: "Scală", FILE_UPLOAD: "Încărcare fișier", CARD_EXTRACT_AI: "Extragere AI", STATIC_TEXT: "Text static", REGION: "Regiune", MAP_POINT: "Punct pe hartă" };
+  TEMPLATE_TYPES = { REQUEST_FORM: "Formular cerere", INTERNAL_DOC: "Document intern", EXTERNAL_DOC: "Document extern" };
+
+  hasOptions(t) { return ["DROPDOWN", "RADIO", "MULTI_CHECKBOX", "REGION"].includes(t); }
+
+  update(mut) { const form = JSON.parse(JSON.stringify(this.state.form)); mut(form); this.setState({ form }); }
+  setMeta(k, v) { this.update((f) => { f[k] = v; }); }
+  fieldsOf(f, loc) { return loc === "o" ? f.otherFields : f.sections[loc].fields; }
+  patchField(loc, i, p) { this.update((f) => { Object.assign(this.fieldsOf(f, loc)[i], p); }); }
+  removeField(loc, i) { this.update((f) => { this.fieldsOf(f, loc).splice(i, 1); }); }
+  addField(loc, type) {
+    this.update((f) => { this.fieldsOf(f, loc).push({ key: "", type, internalTitle: this.TYPE_LABEL[type], label: this.TYPE_LABEL[type], placeholder: "", helpText: "", required: false, disabled: false, readOnly: false, options: this.hasOptions(type) ? ["Opțiune 1", "Opțiune 2"] : [], conditions: [] }); });
+    this.setState({ picker: null, openPath: (loc === "o" ? "o" : "s" + loc) + "-f" + (this.fieldsOf(this.state.form, loc).length) });
+  }
+  addSection() { this.update((f) => { f.sections.push({ name: "Secțiune " + (f.sections.length + 1), fields: [] }); }); }
+  removeSection(i) { this.update((f) => { f.sections.splice(i, 1); }); }
+  addOption(loc, i) { this.update((f) => { this.fieldsOf(f, loc)[i].options.push("Opțiune " + (this.fieldsOf(f, loc)[i].options.length + 1)); }); }
+  setOption(loc, i, oi, v) { this.update((f) => { this.fieldsOf(f, loc)[i].options[oi] = v; }); }
+  removeOption(loc, i, oi) { this.update((f) => { this.fieldsOf(f, loc)[i].options.splice(oi, 1); }); }
+  addCond(loc, i) { this.update((f) => { const keys = this.allKeys(f); this.fieldsOf(f, loc)[i].conditions.push({ field: keys[0] || "", op: "equals", value: "" }); }); }
+  setCond(loc, i, ci, p) { this.update((f) => { Object.assign(this.fieldsOf(f, loc)[i].conditions[ci], p); }); }
+  removeCond(loc, i, ci) { this.update((f) => { this.fieldsOf(f, loc)[i].conditions.splice(ci, 1); }); }
+  allKeys(f) { return [...f.sections.flatMap((s) => s.fields), ...f.otherFields].map((x) => x.key).filter(Boolean); }
+  setPV(k, v) { this.setState({ values: { ...this.state.values, [k]: v }, pvMsg: null }); }
+  setCfg(k, v) { this.setState({ docCfg: { ...this.state.docCfg, [k]: v } }); }
+  doSave() { this.setState({ saveMsg: "✓ Șablon salvat cu configurația de câmpuri și setările de document. Disponibil în lista de șabloane." }); }
+  generatePDF() {
+    const F = this.state.form, V = this.state.values || {}, cfg = this.state.docCfg;
+    const esc = (s) => String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const cond = (fl) => (fl.conditions || []).every((c) => { const a = String(V[c.field] == null ? "" : V[c.field]); return c.op === "not_equals" ? a !== c.value : a === c.value; });
+    const valStr = (fl) => { const v = V[fl.key]; if (fl.type === "TOGGLE") return v ? "Da" : "Nu"; if (Array.isArray(v)) return v.join(", "); return v == null ? "" : String(v); };
+    const rows = (fields) => fields.filter((fl) => cond(fl) && fl.type !== "STATIC_TEXT").map((fl) => { const val = valStr(fl); if (!val && !cfg.showEmpty) return ""; return "<tr><td class='lbl'>" + esc(fl.label || fl.internalTitle) + "</td><td class='val'>" + (esc(val) || "&mdash;") + "</td></tr>"; }).join("");
+    let body = "";
+    F.sections.forEach((s) => { const r = rows(s.fields); if (r) body += "<h3>" + esc(s.name) + "</h3><table class='fields'>" + r + "</table>"; });
+    const ofr = rows(F.otherFields); if (ofr) body += "<h3>Alte cerințe</h3><table class='fields'>" + ofr + "</table>";
+    const align = cfg.sigPos === "left" ? "flex-start" : cfg.sigPos === "center" ? "center" : "flex-end";
+    const header = cfg.header ? "<div class='hdr'><div class='mark'></div><div><div class='inst'>Agenția Națională pentru Sport</div><div class='sub'>Platformă digitală integrată</div></div><div class='reg'>Nr. înreg. ____ / " + new Date().toLocaleDateString('ro-RO') + "</div></div>" : "";
+    const sig = "<div class='sigwrap' style='justify-content:" + align + "'><div class='sig'><div class='sigt'>Semnătură electronică calificată</div><div class='sigbox'>Semnat de: ____________________<br>Funcție: ____________________<br>Data: ____________________<br>Serie certificat: ____________________</div><div class='sighint'>Zonă rezervată semnăturii electronice (PAdES) — aplică semnătura după descărcare.</div></div></div>";
+    const footer = cfg.footer ? "<div class='ftr'>Document generat din Platforma ANS · pregătit pentru semnare electronică · pagina 1</div>" : "";
+    const css = "@page{size:A4;margin:20mm 16mm}*{box-sizing:border-box}body{font-family:'Plus Jakarta Sans',Arial,sans-serif;color:#0E1116;margin:0}.doc{max-width:720px;margin:0 auto;padding:20px}.hdr{display:flex;align-items:center;gap:14px;border-bottom:2px solid #FF6B1A;padding-bottom:14px;margin-bottom:22px}.mark{width:34px;height:34px;border-radius:8px;background:#FF6B1A;flex-shrink:0}.inst{font-weight:700;font-size:15px}.sub{font-size:12px;color:#6A6F78}.reg{margin-left:auto;font-size:12px;color:#6A6F78;text-align:right}h1{font-size:22px;margin:0 0 4px}.docsub{color:#6A6F78;font-size:13px;margin:0 0 20px}h3{font-size:14px;color:#FF6B1A;margin:18px 0 8px}table.fields{width:100%;border-collapse:collapse;margin-bottom:8px}.fields td{padding:8px 10px;border-bottom:1px solid #E8E9EC;font-size:13px;vertical-align:top}.fields .lbl{color:#6A6F78;width:42%}.fields .val{font-weight:600}.sigwrap{display:flex;margin-top:44px}.sig{width:300px}.sigt{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#6A6F78;margin-bottom:8px}.sigbox{border:1.5px dashed #CBD0D6;border-radius:10px;padding:16px;font-size:12.5px;line-height:2;color:#3C4149}.sighint{font-size:10.5px;color:#A0A5AD;margin-top:8px;font-style:italic}.ftr{margin-top:40px;border-top:1px solid #E8E9EC;padding-top:10px;font-size:11px;color:#A0A5AD;text-align:center}";
+    const html = "<!doctype html><html lang='ro'><head><meta charset='utf-8'><title>" + esc(F.title || F.name) + "</title><link rel='stylesheet' href='https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&display=swap'><style>" + css + "<\/style></head><body><div class='doc'>" + header + "<h1>" + esc(F.title || F.name) + "</h1>" + (F.subtitle ? "<p class='docsub'>" + esc(F.subtitle) + "</p>" : "") + body + sig + footer + "</div><scr" + "ipt>window.onload=function(){setTimeout(function(){window.print();},350);};<\/scr" + "ipt></body></html>";
+    const w = window.open("", "_blank"); if (!w) { this.setState({ pvMsg: { ok: false, text: "Permite ferestrele pop-up pentru a genera PDF-ul." } }); return; }
+    w.document.open(); w.document.write(html); w.document.close();
+  }
+  condOK(fl, V) { return (fl.conditions || []).every((c) => { const a = String(V[c.field] == null ? "" : V[c.field]); return c.op === "not_equals" ? a !== c.value : a === c.value; }); }
+  submitPV() {
+    const F = this.state.form, V = this.state.values || {};
+    const all = [...F.sections.flatMap((s) => s.fields), ...F.otherFields];
+    const missing = all.filter((fl) => fl.required && fl.type !== "STATIC_TEXT" && this.condOK(fl, V) && !(V[fl.key] !== undefined && V[fl.key] !== "" && V[fl.key] !== false && !(Array.isArray(V[fl.key]) && V[fl.key].length === 0))).map((fl) => fl.label || fl.internalTitle);
+    this.setState({ pvMsg: missing.length ? { ok: false, text: "Completează câmpurile obligatorii: " + missing.join(", ") } : { ok: true, text: "✓ Formular valid — cererea ar fi înregistrată cu un număr de registratură." } });
+  }
+
+  // ---------- render helpers ----------
+  renderVals() {
+    const h = React.createElement;
+    const self = this;
+    const F = this.state.form;
+    const C = { brand: "#FF6B1A", brandDark: "#e85a0c", ink: "#0E1116", ink2: "#3C4149", ink3: "#6A6F78", line: "#E8E9EC", line2: "#F2F3F5", bg: "#FBFAF8", card: "#fff", danger: "#E0432C", dangerTint: "#FDECEA", brandTint: "#FFF1E8" };
+    const inp = { width: "100%", border: "1.5px solid " + C.line, borderRadius: 10, padding: "9px 11px", fontSize: 13.5, color: C.ink, background: C.bg };
+    const lbl = (t) => h("div", { style: { fontSize: 11.5, fontWeight: 600, color: C.ink3, textTransform: "uppercase", letterSpacing: 0.3, marginBottom: 6 } }, t);
+    const field = (v, on, props) => h("input", { value: v, onChange: (e) => on(e.target.value), style: inp, ...(props || {}) });
+    const chk2 = (label, val, on) => h("label", { style: { display: "flex", gap: 8, alignItems: "center", fontSize: 13, color: C.ink2 } }, h("input", { type: "checkbox", checked: val, onChange: (e) => on(e.target.checked) }), label);
+    const card = (children, ex) => h("div", { style: { background: C.card, border: "1px solid " + C.line, borderRadius: 16, boxShadow: "0 1px 4px rgba(14,17,22,0.06)", padding: 20, ...(ex || {}) } }, children);
+    const secTitle = (t) => h("div", { style: { fontSize: 12, fontWeight: 700, letterSpacing: 1.4, textTransform: "uppercase", color: C.ink3, marginBottom: 14 } }, t);
+    const pill = (t, col, bg) => h("span", { style: { display: "inline-flex", alignItems: "center", padding: "3px 9px", borderRadius: 999, background: bg, color: col, fontSize: 10.5, fontWeight: 700 } }, t);
+    const btn = (t, on, kind) => {
+      const base = { fontFamily: "'Plus Jakarta Sans',sans-serif", fontWeight: 700, fontSize: 12.5, border: "none", borderRadius: 10, padding: "8px 14px", cursor: "pointer" };
+      const styles = { primary: { background: C.brand, color: "#fff", boxShadow: "0 4px 12px rgba(255,107,26,0.28)" }, ghost: { background: C.line2, color: C.ink2 }, danger: { background: C.dangerTint, color: C.danger } };
+      return h("button", { onClick: on, style: { ...base, ...(styles[kind] || styles.ghost) } }, t);
+    };
+
+    // live preview of a field
+    const preview = (fl) => {
+      const box = { width: "100%", border: "1.5px solid " + C.line, borderRadius: 10, padding: "9px 11px", fontSize: 13, background: "#fff", color: C.ink3 };
+      let ctrl;
+      if (fl.type === "LONG_TEXT") ctrl = h("textarea", { placeholder: fl.placeholder, disabled: true, style: { ...box, minHeight: 60 } });
+      else if (["DROPDOWN", "REGION"].includes(fl.type)) ctrl = h("select", { disabled: true, style: box }, h("option", null, fl.placeholder || "Selectează..."), ...fl.options.map((o, i) => h("option", { key: i }, o)));
+      else if (["RADIO", "MULTI_CHECKBOX"].includes(fl.type)) ctrl = h("div", { style: { display: "flex", flexDirection: "column", gap: 5 } }, ...(fl.options.length ? fl.options : ["Opțiune 1"]).map((o, i) => h("label", { key: i, style: { fontSize: 13, display: "flex", gap: 6, alignItems: "center", color: C.ink2 } }, h("input", { type: fl.type === "RADIO" ? "radio" : "checkbox", disabled: true }), o)));
+      else if (fl.type === "TOGGLE") ctrl = h("input", { type: "checkbox", disabled: true, style: { width: 18, height: 18 } });
+      else if (fl.type === "STAR_RATING") ctrl = h("div", { style: { fontSize: 20, color: "#E0A52C" } }, "★★★★★");
+      else if (fl.type === "SCALE") ctrl = h("input", { type: "range", disabled: true, style: { width: "100%" } });
+      else if (["DATE", "DATETIME", "TIME"].includes(fl.type)) ctrl = h("input", { type: fl.type === "TIME" ? "time" : "date", disabled: true, style: box });
+      else if (["FILE_UPLOAD", "CARD_EXTRACT_AI"].includes(fl.type)) ctrl = h("div", { style: { ...box, borderStyle: "dashed", textAlign: "center", padding: 16 } }, "📎 Trage fișierul aici");
+      else if (fl.type === "STATIC_TEXT") ctrl = h("p", { style: { fontSize: 13, color: C.ink2, margin: 0 } }, fl.label || "Text informativ");
+      else if (fl.type === "MAP_POINT") ctrl = h("div", { style: { ...box, textAlign: "center", padding: 16 } }, "📍 Selector hartă");
+      else ctrl = h("input", { type: fl.type === "EMAIL" ? "email" : fl.type === "SHORT_NUMBER" ? "number" : "text", placeholder: fl.placeholder, disabled: true, style: box });
+      return h("div", { style: { padding: 12, background: "#fff", border: "1px dashed " + C.line, borderRadius: 10 } },
+        h("div", { style: { fontSize: 10.5, color: C.ink3, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 6 } }, "Previzualizare"),
+        h("div", { style: { fontSize: 12.5, fontWeight: 700, color: C.ink2, marginBottom: 6 } }, (fl.label || "Etichetă") + (fl.required ? " *" : "")),
+        ctrl,
+        fl.helpText ? h("p", { style: { fontSize: 11, color: C.ink3, marginTop: 6, marginBottom: 0 } }, fl.helpText) : null);
+    };
+
+    // field editor detail
+    const fieldEditor = (loc, i, fl, keys) => {
+      const chk = (label, val, on) => h("label", { style: { display: "flex", gap: 6, alignItems: "center", fontSize: 13, color: C.ink2 } }, h("input", { type: "checkbox", checked: val, onChange: (e) => on(e.target.checked) }), label);
+      const left = h("div", null,
+        h("div", { style: { display: "flex", gap: 8, marginBottom: 10 } },
+          h("div", { style: { flex: 1 } }, lbl("Titlu intern"), field(fl.internalTitle, (v) => self.patchField(loc, i, { internalTitle: v }))),
+          h("div", { style: { width: 120 } }, lbl("Cheie"), field(fl.key, (v) => self.patchField(loc, i, { key: v }), { placeholder: "cheie" }))),
+        h("div", { style: { marginBottom: 10 } }, lbl("Etichetă afișată"), field(fl.label, (v) => self.patchField(loc, i, { label: v }))),
+        h("div", { style: { display: "flex", gap: 8, marginBottom: 10 } },
+          h("div", { style: { flex: 1 } }, lbl("Text sugestiv"), field(fl.placeholder, (v) => self.patchField(loc, i, { placeholder: v }))),
+          h("div", { style: { flex: 1 } }, lbl("Text de ajutor"), field(fl.helpText, (v) => self.patchField(loc, i, { helpText: v })))),
+        self.hasOptions(fl.type) ? h("div", { style: { marginBottom: 10 } }, lbl("Opțiuni"),
+          ...fl.options.map((o, oi) => h("div", { key: oi, style: { display: "flex", gap: 6, marginBottom: 4 } },
+            h("input", { value: o, onChange: (e) => self.setOption(loc, i, oi, e.target.value), style: { ...inp, flex: 1 } }),
+            btn("✕", () => self.removeOption(loc, i, oi), "danger"))),
+          btn("+ Opțiune", () => self.addOption(loc, i))) : null,
+        h("div", { style: { display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 12, marginTop: 4 } },
+          chk("Obligatoriu", fl.required, (v) => self.patchField(loc, i, { required: v })),
+          chk("Dezactivat", fl.disabled, (v) => self.patchField(loc, i, { disabled: v })),
+          chk("Doar citire", fl.readOnly, (v) => self.patchField(loc, i, { readOnly: v }))),
+        h("div", { style: { fontSize: 11.5, fontWeight: 700, color: C.ink3, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8, borderTop: "1px solid " + C.line2, paddingTop: 12 } }, "Condiții de vizibilitate"),
+        ...fl.conditions.map((c, ci) => h("div", { key: ci, style: { display: "flex", gap: 6, marginBottom: 6, alignItems: "center", flexWrap: "wrap" } },
+          h("span", { style: { fontSize: 12, color: C.ink3 } }, "Dacă"),
+          h("select", { value: c.field, onChange: (e) => self.setCond(loc, i, ci, { field: e.target.value }), style: { ...inp, width: "auto", flex: 1, minWidth: 100 } }, ...keys.map((k) => h("option", { key: k, value: k }, k))),
+          h("select", { value: c.op, onChange: (e) => self.setCond(loc, i, ci, { op: e.target.value }), style: { ...inp, width: "auto" } }, h("option", { value: "equals" }, "este"), h("option", { value: "not_equals" }, "nu este")),
+          h("input", { value: c.value, onChange: (e) => self.setCond(loc, i, ci, { value: e.target.value }), placeholder: "valoare", style: { ...inp, width: 110 } }),
+          btn("✕", () => self.removeCond(loc, i, ci), "danger"))),
+        btn("+ Condiție", () => self.addCond(loc, i)));
+      const right = h("div", null, preview(fl), h("div", { style: { marginTop: 12 } }, btn("Șterge câmpul", () => self.removeField(loc, i), "danger")));
+      return h("div", { style: { marginTop: 8, background: C.bg, borderRadius: 12, padding: 16, display: "grid", gridTemplateColumns: "1.3fr 1fr", gap: 18 } }, left, right);
+    };
+
+    const fieldRow = (loc, i, fl, keys) => {
+      const path = (loc === "o" ? "o" : "s" + loc) + "-f" + i;
+      const open = self.state.openPath === path;
+      return h("div", { key: path },
+        h("div", { onClick: () => self.setState({ openPath: open ? null : path }), style: { display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", background: open ? C.brandTint : C.line2, borderRadius: 10, cursor: "pointer", border: open ? "1px solid " + C.brand : "1px solid transparent" } },
+          pill(self.TYPE_LABEL[fl.type] || fl.type, C.ink2, "#fff"),
+          h("span", { style: { fontWeight: 700, fontSize: 13, color: C.ink } }, fl.internalTitle || "(fără titlu)"),
+          fl.key ? h("span", { style: { fontSize: 12, color: C.ink3 } }, "#" + fl.key) : null,
+          fl.required ? pill("Obligatoriu", C.danger, C.dangerTint) : null,
+          h("span", { style: { marginLeft: "auto", color: C.ink3, fontSize: 12 } }, open ? "▲" : "▼")),
+        open ? fieldEditor(loc, i, fl, keys) : null);
+    };
+
+    const keys = this.allKeys(F);
+    const picker = (loc) => {
+      const pk = "add-" + (loc === "o" ? "o" : "s" + loc);
+      const on = self.state.picker === pk;
+      const catalog = h("div", { style: { marginTop: 8, background: "#fff", border: "1px solid " + C.line, borderRadius: 12, padding: 14 } },
+        ...this.CAT.map((cat, ci) => h("div", { key: ci, style: { marginBottom: 10 } },
+          h("div", { style: { fontSize: 11, fontWeight: 700, color: C.brand, marginBottom: 6 } }, cat.label),
+          h("div", { style: { display: "flex", flexWrap: "wrap", gap: 6 } },
+            ...cat.types.map((tp) => h("button", { key: tp[0], onClick: () => self.addField(loc, tp[0]), style: { padding: "6px 10px", borderRadius: 8, border: "1px solid " + C.line, background: "#fff", fontSize: 12, cursor: "pointer", fontFamily: "'Plus Jakarta Sans',sans-serif", color: C.ink2 } }, tp[1]))))));
+      return h("div", null, btn("+ Câmp", () => self.setState({ picker: on ? null : pk })), on ? catalog : null);
+    };
+
+    const sectionBlocks = F.sections.map((s, si) => h("div", { key: si, style: { background: C.bg, borderRadius: 12, padding: 14, marginBottom: 14 } },
+      h("div", { style: { display: "flex", gap: 8, marginBottom: 10, alignItems: "center" } },
+        h("input", { value: s.name, onChange: (e) => { const v = e.target.value; self.update((f) => { f.sections[si].name = v; }); }, style: { ...inp, flex: 1, fontWeight: 700 } }),
+        btn("Șterge secțiunea", () => self.removeSection(si), "danger")),
+      h("div", { style: { display: "flex", flexDirection: "column", gap: 8 } }, ...s.fields.map((fl, fi) => fieldRow(si, fi, fl, keys))),
+      h("div", { style: { marginTop: 10 } }, picker(si))));
+
+    const editBody = h("div", { style: { display: "flex", flexDirection: "column", gap: 16 } },
+      card([
+        secTitle("Detalii șablon"),
+        h("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14, marginBottom: 14 } },
+          h("div", null, lbl("Tip șablon"), h("select", { value: F.templateType, onChange: (e) => self.setMeta("templateType", e.target.value), style: inp }, ...Object.entries(this.TEMPLATE_TYPES).map(([v, l]) => h("option", { key: v, value: v }, l)))),
+          h("div", null, lbl("Nume intern"), field(F.name, (v) => self.setMeta("name", v))),
+          h("div", null, lbl("Categorie (leagă workflow)"), field(F.category, (v) => self.setMeta("category", v)))),
+        h("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 } },
+          h("div", null, lbl("Titlu document"), field(F.title, (v) => self.setMeta("title", v))),
+          h("div", null, lbl("Subtitlu"), field(F.subtitle, (v) => self.setMeta("subtitle", v)))),
+        h("div", null, lbl("Descriere"), field(F.description, (v) => self.setMeta("description", v)))
+      ], { key: "d" }),
+      card([secTitle("Formular — secțiuni vizibile solicitantului"), ...sectionBlocks, btn("+ Secțiune", () => self.addSection())], { key: "s" }),
+      card([secTitle("Alte cerințe (câmpuri fără secțiune)"), h("div", { style: { display: "flex", flexDirection: "column", gap: 8, marginBottom: 10 } }, ...F.otherFields.map((fl, fi) => fieldRow("o", fi, fl, keys))), picker("o")], { key: "o" }),
+      card([secTitle("Configurare document PDF"),
+        h("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 } },
+          chk2("Antet instituțional (ANS)", self.state.docCfg.header, (v) => self.setCfg("header", v)),
+          chk2("Afișează câmpurile necompletate", self.state.docCfg.showEmpty, (v) => self.setCfg("showEmpty", v)),
+          chk2("Subsol cu paginare", self.state.docCfg.footer, (v) => self.setCfg("footer", v)),
+          h("div", { style: { display: "flex", alignItems: "center", gap: 10 } }, h("span", { style: { fontSize: 13, color: C.ink2 } }, "Poziție semnătură:"), h("select", { value: self.state.docCfg.sigPos, onChange: (e) => self.setCfg("sigPos", e.target.value), style: { ...inp, width: "auto" } }, h("option", { value: "right" }, "Dreapta jos"), h("option", { value: "left" }, "Stânga jos"), h("option", { value: "center" }, "Centru")))),
+        h("p", { style: { fontSize: 12, color: C.ink3, margin: 0 } }, "La „Generează PDF” (din Previzualizare) documentul include un bloc de semnătură electronică calificată, pregătit pentru semnare.")], { key: "cfg" }),
+      self.state.saveMsg ? h("div", { key: "sm", style: { padding: 12, borderRadius: 10, fontSize: 13, fontWeight: 600, background: "#E8F5EE", color: "#2F9E6F" } }, self.state.saveMsg) : null,
+      h("div", { key: "save", style: { display: "flex", gap: 10, flexWrap: "wrap" } }, btn("Salvează șablonul", () => self.doSave(), "primary"), btn("Previzualizează ca solicitant", () => self.setState({ mode: "preview" })))
+    );
+
+    // ---------- preview / simulation mode ----------
+    const mode = self.state.mode;
+    const V = self.state.values || {};
+    const condOK = (fl) => (fl.conditions || []).every((c) => { const a = String(V[c.field] == null ? "" : V[c.field]); return c.op === "not_equals" ? a !== c.value : a === c.value; });
+    const pvBox = { width: "100%", border: "1.5px solid " + C.line, borderRadius: 10, padding: "10px 12px", fontSize: 14, fontFamily: "'Plus Jakarta Sans',sans-serif", background: C.bg, color: C.ink };
+    const set = (k, v) => self.setPV(k, v);
+    const pvControl = (fl) => {
+      const val = V[fl.key];
+      if (fl.type === "LONG_TEXT") return h("textarea", { value: val || "", onChange: (e) => set(fl.key, e.target.value), placeholder: fl.placeholder, disabled: fl.disabled || fl.readOnly, style: { ...pvBox, minHeight: 80 } });
+      if (["DROPDOWN", "REGION"].includes(fl.type)) return h("select", { value: val || "", onChange: (e) => set(fl.key, e.target.value), disabled: fl.disabled || fl.readOnly, style: pvBox }, h("option", { value: "" }, fl.placeholder || "Selectează..."), ...fl.options.map((o, i) => h("option", { key: i, value: o }, o)));
+      if (fl.type === "RADIO") return h("div", { style: { display: "flex", flexDirection: "column", gap: 6 } }, ...fl.options.map((o, i) => h("label", { key: i, style: { fontSize: 13.5, display: "flex", gap: 7, alignItems: "center", color: C.ink2 } }, h("input", { type: "radio", checked: val === o, onChange: () => set(fl.key, o), disabled: fl.disabled }), o)));
+      if (fl.type === "MULTI_CHECKBOX") { const arr = Array.isArray(val) ? val : []; return h("div", { style: { display: "flex", flexDirection: "column", gap: 6 } }, ...fl.options.map((o, i) => h("label", { key: i, style: { fontSize: 13.5, display: "flex", gap: 7, alignItems: "center", color: C.ink2 } }, h("input", { type: "checkbox", checked: arr.includes(o), onChange: (e) => set(fl.key, e.target.checked ? [...arr, o] : arr.filter((x) => x !== o)), disabled: fl.disabled }), o))); }
+      if (fl.type === "TOGGLE") return h("label", { style: { fontSize: 13.5, display: "flex", gap: 8, alignItems: "center", color: C.ink2 } }, h("input", { type: "checkbox", checked: !!val, onChange: (e) => set(fl.key, e.target.checked), disabled: fl.disabled }), "Da, sunt de acord");
+      if (fl.type === "STAR_RATING") return h("div", { style: { fontSize: 26, cursor: "pointer", color: "#E0A52C" } }, ...[1, 2, 3, 4, 5].map((n) => h("span", { key: n, onClick: () => set(fl.key, n) }, (val || 0) >= n ? "★" : "☆")));
+      if (fl.type === "SCALE") return h("div", null, h("input", { type: "range", min: 1, max: 10, value: val || 1, onChange: (e) => set(fl.key, +e.target.value), style: { width: "100%" } }), h("div", { style: { fontSize: 12, color: C.ink3 } }, (val || 1) + " / 10"));
+      if (["DATE", "DATETIME", "TIME"].includes(fl.type)) return h("input", { type: fl.type === "TIME" ? "time" : fl.type === "DATETIME" ? "datetime-local" : "date", value: val || "", onChange: (e) => set(fl.key, e.target.value), disabled: fl.disabled, style: pvBox });
+      if (["FILE_UPLOAD", "CARD_EXTRACT_AI"].includes(fl.type)) return h("div", { style: { ...pvBox, borderStyle: "dashed", textAlign: "center", padding: 18, color: C.ink3, cursor: "pointer" } }, fl.type === "CARD_EXTRACT_AI" ? "🪪 Încarcă CI — extragere automată AI" : "📎 Trage fișierul aici sau click");
+      if (fl.type === "STATIC_TEXT") return h("p", { style: { fontSize: 13.5, color: C.ink2, margin: 0 } }, fl.label);
+      if (fl.type === "MAP_POINT") return h("input", { value: val || "", onChange: (e) => set(fl.key, e.target.value), placeholder: "latitudine, longitudine", style: pvBox });
+      return h("input", { type: fl.type === "EMAIL" ? "email" : fl.type === "SHORT_NUMBER" ? "number" : "text", value: val || "", onChange: (e) => set(fl.key, e.target.value), placeholder: fl.placeholder, disabled: fl.disabled || fl.readOnly, style: pvBox });
+    };
+    const fieldBlock = (fl) => !condOK(fl) ? null : h("div", { key: fl.key, style: { marginBottom: 16 } },
+      fl.type !== "STATIC_TEXT" ? h("div", { style: { fontSize: 13, fontWeight: 600, color: C.ink2, marginBottom: 6 } }, (fl.label || "") + (fl.required ? " *" : "")) : null,
+      pvControl(fl),
+      fl.helpText ? h("p", { style: { fontSize: 11.5, color: C.ink3, margin: "5px 0 0" } }, fl.helpText) : null);
+    const previewBody = card([
+      F.title ? h("h2", { key: "t", style: { fontFamily: "'Bricolage Grotesque',sans-serif", fontSize: 21, fontWeight: 700, letterSpacing: "-0.3px", margin: "0 0 2px" } }, F.title) : null,
+      F.subtitle ? h("p", { key: "st", style: { color: C.ink3, fontSize: 13.5, margin: "0 0 20px" } }, F.subtitle) : null,
+      ...F.sections.map((s, si) => h("div", { key: si, style: { marginBottom: 20 } }, h("div", { style: { fontWeight: 700, fontSize: 14, color: C.brand, marginBottom: 12 } }, s.name), ...s.fields.map((fl) => fieldBlock(fl)))),
+      F.otherFields.length ? h("div", { key: "of", style: { marginBottom: 20 } }, h("div", { style: { fontWeight: 700, fontSize: 14, color: C.brand, marginBottom: 12 } }, "Alte cerințe"), ...F.otherFields.map((fl) => fieldBlock(fl))) : null,
+      self.state.pvMsg ? h("div", { key: "msg", style: { padding: 12, borderRadius: 10, marginBottom: 14, fontSize: 13, fontWeight: 600, background: self.state.pvMsg.ok ? "#E8F5EE" : C.dangerTint, color: self.state.pvMsg.ok ? "#2F9E6F" : C.danger } }, self.state.pvMsg.text) : null,
+      h("div", { key: "b", style: { display: "flex", gap: 10, flexWrap: "wrap" } }, btn("Depune cererea", () => self.submitPV(), "primary"), btn("⤓ Generează PDF pentru semnare", () => self.generatePDF()), btn("Resetează", () => self.setState({ values: {}, pvMsg: null })))
+    ], { maxWidth: 660 });
+
+    const tabS = (a) => ({ fontFamily: "'Plus Jakarta Sans',sans-serif", fontWeight: 700, fontSize: 13, border: "none", borderRadius: 9, padding: "8px 16px", cursor: "pointer", background: a ? "#172027" : "transparent", color: a ? "#fff" : C.ink3 });
+    const toolbar = h("div", { style: { display: "flex", gap: 4, marginBottom: 16, background: "#fff", border: "1px solid " + C.line, borderRadius: 12, padding: 5, width: "fit-content" } },
+      h("button", { onClick: () => self.setState({ mode: "edit" }), style: tabS(mode === "edit") }, "✎  Editare"),
+      h("button", { onClick: () => self.setState({ mode: "preview" }), style: tabS(mode === "preview") }, "👁  Previzualizare"));
+
+    const tree = h("div", null, toolbar, mode === "edit" ? editBody : previewBody);
+    return { tree };
+  }
+}
+</script>
+</body>
+</html>
