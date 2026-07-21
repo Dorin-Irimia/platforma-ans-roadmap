@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
 import { ImageOff } from "lucide-react";
-import { T, RADIUS } from "../../../theme";
+import { motion, useReducedMotion } from "framer-motion";
+import { T, RADIUS, SHADOW } from "../../../theme";
 import { fetchWidgetImageBlobUrl } from "../../../features/dashboard/api";
 
 export function CustomButtonWidget({ id, title, config, hasImage }: { id: string; title?: string | null; config?: Record<string, unknown> | null; hasImage: boolean }) {
   const url = (config?.url as string) || "";
+  const reduceMotion = useReducedMotion();
   const [imgUrl, setImgUrl] = useState<string | null>(null);
 
   useEffect(() => {
@@ -20,9 +22,12 @@ export function CustomButtonWidget({ id, title, config, hasImage }: { id: string
   }, [id, hasImage]);
 
   return (
-    <button
+    <motion.button
       onClick={() => url && window.open(url, "_blank", "noopener,noreferrer")}
       disabled={!url}
+      whileHover={url && !reduceMotion ? { scale: 1.045, y: -3, boxShadow: SHADOW.lg } : undefined}
+      whileTap={url && !reduceMotion ? { scale: 0.98 } : undefined}
+      transition={{ type: "spring", stiffness: 400, damping: 22 }}
       style={{
         width: "100%",
         height: "100%",
@@ -35,6 +40,7 @@ export function CustomButtonWidget({ id, title, config, hasImage }: { id: string
         background: T.line2,
         border: "none",
         borderRadius: RADIUS.md,
+        boxShadow: SHADOW.sm,
         cursor: url ? "pointer" : "not-allowed",
         overflow: "hidden",
       }}
@@ -45,6 +51,6 @@ export function CustomButtonWidget({ id, title, config, hasImage }: { id: string
         <ImageOff size={24} color={T.ink4} />
       )}
       <span style={{ fontSize: 13, fontWeight: 700, color: T.ink }}>{title || "Buton personalizat"}</span>
-    </button>
+    </motion.button>
   );
 }

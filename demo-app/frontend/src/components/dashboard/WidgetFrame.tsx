@@ -1,4 +1,5 @@
 import { ReactNode } from "react";
+import { motion, useReducedMotion } from "framer-motion";
 import { X, Pencil } from "lucide-react";
 import { Card } from "../ui";
 import { T } from "../../theme";
@@ -9,15 +10,23 @@ const BARE_TYPES = new Set(["LINK_BUTTON", "CUSTOM_BUTTON"]);
 interface Props {
   widget: DashboardWidgetDto;
   editing: boolean;
+  index: number;
   onDelete: () => void;
   onEdit: () => void;
   children: ReactNode;
 }
 
-export function WidgetFrame({ widget, editing, onDelete, onEdit, children }: Props) {
+export function WidgetFrame({ widget, editing, index, onDelete, onEdit, children }: Props) {
   const bare = BARE_TYPES.has(widget.type);
+  const reduceMotion = useReducedMotion();
 
   return (
+    <motion.div
+      style={{ height: "100%" }}
+      initial={reduceMotion ? undefined : { opacity: 0, scale: 0.94, y: 10 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      transition={{ delay: reduceMotion ? 0 : index * 0.045, type: "spring", stiffness: 300, damping: 24 }}
+    >
     <Card style={{ height: "100%", display: "flex", flexDirection: "column", padding: bare ? 10 : 16, position: "relative", overflow: "hidden" }}>
       {editing && (
         <div style={{ position: "absolute", top: 8, right: 8, display: "flex", gap: 6, zIndex: 2 }}>
@@ -44,5 +53,6 @@ export function WidgetFrame({ widget, editing, onDelete, onEdit, children }: Pro
       )}
       <div style={{ flex: 1, minHeight: 0, overflow: "auto" }}>{children}</div>
     </Card>
+    </motion.div>
   );
 }

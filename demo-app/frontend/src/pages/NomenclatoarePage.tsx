@@ -124,7 +124,7 @@ function NomenclatorDetail({ nomenclator, onClose, onChanged }: { nomenclator: N
   if (!detail) return null;
 
   return (
-    <Modal onClose={onClose} width={720} maxHeight="86vh">
+    <Modal isOpen onClose={onClose} width={720} maxHeight="86vh">
         <Card>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
             <SectionHeader title={detail.name} />

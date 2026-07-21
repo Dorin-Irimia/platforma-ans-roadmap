@@ -389,7 +389,7 @@ function FieldRow({
 // starea lor reală depinde de răspunsurile efective la depunere.
 function FullFormPreview({ form, onClose }: { form: FormPayload; onClose: () => void }) {
   return (
-    <Modal onClose={onClose} width={560} maxHeight="88vh">
+    <Modal isOpen onClose={onClose} width={560} maxHeight="88vh">
         <Card>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 }}>
             <div>

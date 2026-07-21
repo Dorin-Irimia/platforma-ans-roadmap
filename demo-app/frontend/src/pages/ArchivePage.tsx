@@ -20,7 +20,7 @@ import {
 
 function DocumentPreviewModal({ id, filename, onClose }: { id: string; filename: string; onClose: () => void }) {
   return (
-    <Modal onClose={onClose} width="auto" maxHeight="88vh">
+    <Modal isOpen onClose={onClose} width="auto" maxHeight="88vh">
       <Card style={{ maxHeight: "88vh", overflowY: "auto" }}>
         <SectionHeader title={filename} />
         <PdfPreview documentId={id} width={560} />
@@ -69,7 +69,7 @@ function AssignDocumentsModal({ folderId, onClose, onAssigned }: { folderId: str
   }
 
   return (
-    <Modal onClose={onClose} width={460}>
+    <Modal isOpen onClose={onClose} width={460}>
         <Card>
           <SectionHeader title="Asociază documente existente" />
           <FieldLabel>Cerere din Registratură</FieldLabel>
@@ -210,8 +210,8 @@ export default function ArchivePage() {
         {folders.length === 0 && <p style={{ color: T.ink3 }}>Niciun dosar creat încă.</p>}
       </div>
 
-      {openFolder && (
-        <Modal onClose={() => setOpenFolder(null)} width={460}>
+      <Modal isOpen={!!openFolder} onClose={() => setOpenFolder(null)} width={460}>
+        {openFolder && (
             <Card>
               <SectionHeader title={openFolder.name} />
               <div style={{ marginBottom: 12 }}>
@@ -232,8 +232,8 @@ export default function ArchivePage() {
               </div>
               <Button variant="ghost" style={{ marginTop: 14 }} onClick={() => setOpenFolder(null)}>Închide</Button>
             </Card>
-        </Modal>
-      )}
+        )}
+      </Modal>
 
       {assignFor && (
         <AssignDocumentsModal

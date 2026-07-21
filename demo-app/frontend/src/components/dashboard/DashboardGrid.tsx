@@ -135,11 +135,12 @@ export function DashboardGrid() {
         onDragStop={(l) => persistLayout(l)}
         onResizeStop={(l) => persistLayout(l)}
       >
-        {widgets.map((w) => (
+        {widgets.map((w, i) => (
           <div key={w.id}>
             <WidgetFrame
               widget={w}
               editing={editing}
+              index={i}
               onDelete={() => handleDelete(w.id)}
               onEdit={() => { setEditingWidget(w); setFormOpen(true); }}
             >

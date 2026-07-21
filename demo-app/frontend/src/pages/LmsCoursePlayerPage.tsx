@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Lock, Mic, Volume2, Download, Send, Award } from "lucide-react";
+import { Lock, Mic, Volume2, Square, Download, Send, Award } from "lucide-react";
 import { AppShell } from "../components/AppShell";
 import { Card, Button } from "../components/ui";
 import { T } from "../theme";
@@ -21,7 +21,7 @@ import {
 } from "../features/lms/api";
 import { LessonBlocksView } from "../components/lms/LessonBlocksView";
 import { QuizPlayer } from "../components/lms/QuizPlayer";
-import { isSpeechRecognitionSupported, startSpeechRecognition, isSpeechSynthesisSupported, speakText } from "../features/chatbot/speech";
+import { isSpeechRecognitionSupported, startSpeechRecognition, isSpeechSynthesisSupported, speakText, stopSpeech } from "../features/chatbot/speech";
 
 export default function LmsCoursePlayerPage() {
   const { id } = useParams<{ id: string }>();
@@ -36,6 +36,17 @@ export default function LmsCoursePlayerPage() {
   const [recording, setRecording] = useState(false);
   const [certificate, setCertificate] = useState<LmsCertificateDto | null>(null);
   const [downloadingAudio, setDownloadingAudio] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+
+  function handleToggleSpeech(text: string) {
+    if (isSpeaking) {
+      stopSpeech();
+      setIsSpeaking(false);
+      return;
+    }
+    setIsSpeaking(true);
+    speakText(text, () => setIsSpeaking(false));
+  }
 
   async function handleDownloadAudio(text: string) {
     setDownloadingAudio(true);
@@ -62,7 +73,11 @@ export default function LmsCoursePlayerPage() {
     fetchCourse(id).then(setCourse).catch(() => setCourse(null));
     fetchLessons(id).then(setLessons).catch(() => setLessons([]));
     loadAccess();
-    fetchEnrollment(id).then((e) => setActiveId(e.currentLessonId || null));
+    // La o primă înrolare (fără `currentLessonId` încă salvat), NU suprascriem cu `null`
+    // — lăsăm efectul de mai jos să aleagă prima lecție, indiferent de ordinea în care
+    // răspund cele două cereri (altfel, dacă acest răspuns sosește ultimul, ar rescrie
+    // silențios selecția implicită și ar arăta fals "acest curs nu are încă lecții").
+    fetchEnrollment(id).then((e) => { if (e.currentLessonId) setActiveId(e.currentLessonId); });
     loadCertificate();
   }, [id]);
 
@@ -125,28 +140,32 @@ export default function LmsCoursePlayerPage() {
       <div style={{ display: "grid", gridTemplateColumns: "260px 1fr", gap: 20 }}>
         <Card style={{ padding: 10, alignSelf: "start" }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            {lessons.map((l) => {
-              const locked = isLocked(l.id);
-              return (
-                <div
-                  key={l.id}
-                  onClick={() => goToLesson(l.id)}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    padding: "9px 10px",
-                    borderRadius: 8,
-                    cursor: locked ? "not-allowed" : "pointer",
-                    background: activeId === l.id ? T.brandTint : "transparent",
-                    opacity: locked ? 0.5 : 1,
-                  }}
-                >
-                  <span style={{ fontSize: 13, fontWeight: activeId === l.id ? 700 : 500 }}>{l.title}</span>
-                  {locked && <Lock size={13} color={T.ink4} />}
-                </div>
-              );
-            })}
+            {(() => {
+              const firstLockedIdx = lessons.findIndex((l) => isLocked(l.id));
+              return lessons.map((l, idx) => {
+                const locked = isLocked(l.id);
+                return (
+                  <div
+                    key={l.id}
+                    id={idx === firstLockedIdx ? "lms-player-locked-lesson" : undefined}
+                    onClick={() => goToLesson(l.id)}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      padding: "9px 10px",
+                      borderRadius: 8,
+                      cursor: locked ? "not-allowed" : "pointer",
+                      background: activeId === l.id ? T.brandTint : "transparent",
+                      opacity: locked ? 0.5 : 1,
+                    }}
+                  >
+                    <span style={{ fontSize: 13, fontWeight: activeId === l.id ? 700 : 500 }}>{l.title}</span>
+                    {locked && <Lock size={13} color={T.ink4} />}
+                  </div>
+                );
+              });
+            })()}
           </div>
         </Card>
 
@@ -197,8 +216,12 @@ export default function LmsCoursePlayerPage() {
                   <span style={{ fontSize: 13.5 }}>{answer}</span>
                   <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
                     {isSpeechSynthesisSupported() && (
-                      <button onClick={() => speakText(answer)} title="Ascultă răspunsul" style={{ background: "none", border: "none", cursor: "pointer", color: T.ink3 }}>
-                        <Volume2 size={14} />
+                      <button
+                        onClick={() => handleToggleSpeech(answer)}
+                        title={isSpeaking ? "Oprește" : "Ascultă răspunsul"}
+                        style={{ background: "none", border: "none", cursor: "pointer", color: isSpeaking ? T.brand : T.ink3 }}
+                      >
+                        {isSpeaking ? <Square size={13} fill={T.brand} /> : <Volume2 size={14} />}
                       </button>
                     )}
                     <button

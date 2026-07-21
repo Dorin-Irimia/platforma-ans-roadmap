@@ -1,5 +1,6 @@
+import DOMPurify from "dompurify";
 import { T } from "../../theme";
-import { LessonBlock } from "../../features/lms/api";
+import { LessonBlock, correctIndexesOf } from "../../features/lms/api";
 
 // Randare read-only a blocurilor unei lecții — folosită atât în previzualizarea din
 // editor (fără interacțiune), cât și ca bază vizuală pentru player (care adaugă
@@ -9,7 +10,16 @@ export function LessonBlocksView({ blocks }: { blocks: LessonBlock[] }) {
     <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
       {blocks.map((block) => {
         if (block.type === "TEXT") {
-          return <p key={block.id} style={{ fontSize: 14.5, lineHeight: 1.7, color: T.ink2, whiteSpace: "pre-wrap", margin: 0 }}>{block.text}</p>;
+          // `block.text` e HTML scris cu editorul TipTap (posibil de un alt autor/co-autor) —
+          // sanitizare obligatorie înainte de `dangerouslySetInnerHTML` (risc XSS stocat altfel).
+          return (
+            <div
+              key={block.id}
+              className="rich-text-content"
+              style={{ color: T.ink2 }}
+              dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(block.text) }}
+            />
+          );
         }
         if (block.type === "IMAGE") {
           return (
@@ -38,7 +48,7 @@ export function LessonBlocksView({ blocks }: { blocks: LessonBlock[] }) {
                 <div style={{ fontSize: 13.5, fontWeight: 600, marginBottom: 6 }}>{qi + 1}. {q.text}</div>
                 {q.options.map((o, oi) => (
                   <label key={oi} style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 13, color: T.ink2, marginBottom: 3 }}>
-                    <input type="radio" disabled checked={oi === q.correctIndex} readOnly /> {o}
+                    <input type="checkbox" disabled checked={correctIndexesOf(q).includes(oi)} readOnly /> {o}
                   </label>
                 ))}
               </div>

@@ -47,7 +47,7 @@ const ORG_STATUS_STYLE: Record<string, { color: string; bg: string; label: strin
 
 function HistoryModal({ title, entries, onClose }: { title: string; entries: HistoryEntryDto[]; onClose: () => void }) {
   return (
-    <Modal onClose={onClose} width={480} maxHeight="80vh">
+    <Modal isOpen onClose={onClose} width={480} maxHeight="80vh">
         <Card>
           <SectionHeader title={title} />
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -376,8 +376,8 @@ function AthletesTab() {
         {athletes.length === 0 && <p style={{ color: T.ink3 }}>Niciun sportiv creat încă.</p>}
       </div>
 
-      {transferFor && (
-        <Modal onClose={() => setTransferFor(null)} width={400}>
+      <Modal isOpen={!!transferFor} onClose={() => setTransferFor(null)} width={400}>
+        {transferFor && (
             <Card>
               <SectionHeader title={`Transfer — ${transferFor.firstName} ${transferFor.lastName}`} />
               <FieldLabel>Club destinație</FieldLabel>
@@ -391,8 +391,8 @@ function AthletesTab() {
                 <Button onClick={handleTransfer}>Inițiază transfer</Button>
               </div>
             </Card>
-        </Modal>
-      )}
+        )}
+      </Modal>
     </div>
   );
 }

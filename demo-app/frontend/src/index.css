@@ -72,9 +72,41 @@ a:hover { color: var(--brand-dark); }
   animation: skeletonShimmer 1.4s ease-in-out infinite;
 }
 
+/* Spinner reutilizabil (ex. `Loader2` din lucide-react cu className="spin") — feedback
+   clar de "se procesează", ca la un apel AI să nu pară că nu s-a înregistrat click-ul. */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+.spin {
+  animation: spin 0.8s linear infinite;
+}
+
+/* Magnificare stil Dock macOS pe bara laterală de navigare (AppShell.tsx) — CSS pur,
+   fără librărie: item-ul cu hover crește cel mai mult, vecinii direcți cresc mai puțin,
+   exact cascada de magnificare a unui Dock lateral. Selectorul `:has(+ .sidebar-item:hover)`
+   țintește fratele DINAINTE de cel cu hover (CSS nu are combinator nativ de "frate anterior"). */
+.sidebar-item {
+  transition: transform 0.18s cubic-bezier(0.34, 1.4, 0.64, 1);
+  transform-origin: left center;
+}
+.sidebar-item:hover {
+  transform: scale(1.06) translateX(3px);
+}
+.sidebar-item:has(+ .sidebar-item:hover) {
+  transform: scale(1.02) translateX(1px);
+}
+.sidebar-item:hover + .sidebar-item {
+  transform: scale(1.02) translateX(1px);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .skeleton { animation: none; }
+  .spin { animation: none; }
   * { scroll-behavior: auto !important; }
+  .sidebar-item, .sidebar-item:hover, .sidebar-item:has(+ .sidebar-item:hover), .sidebar-item:hover + .sidebar-item {
+    transition: none;
+    transform: none;
+  }
 }
 
 input, select, textarea {
@@ -124,3 +156,31 @@ th {
   border-bottom: 1px solid var(--line);
 }
 tr td { border-bottom: 1px solid var(--line-2); }
+
+/* Editor de text bogat (TipTap) — conținutul blocurilor TEXT din LMS, atât la
+   editare (BlockEditor) cât și la randare read-only (LessonBlocksView). Tabelele
+   Word-style au nevoie de grilă completă (toate laturile), nu doar linie de jos
+   ca la tabelele de date ale aplicației, de aceea sunt izolate în `.rich-text-content`. */
+.rich-text-content { font-size: 14px; line-height: 1.7; color: var(--ink); }
+.rich-text-content p { margin: 0 0 10px; }
+.rich-text-content p:last-child { margin-bottom: 0; }
+.rich-text-content h1, .rich-text-content h2, .rich-text-content h3 { margin: 14px 0 8px; }
+.rich-text-content ul, .rich-text-content ol { padding-left: 22px; margin: 0 0 10px; }
+.rich-text-content table { border-collapse: collapse; width: 100%; margin: 6px 0 14px; table-layout: fixed; }
+.rich-text-content th, .rich-text-content td { border: 1px solid var(--line); padding: 8px 10px; font-size: 13px; text-align: left; vertical-align: top; }
+.rich-text-content th { background: var(--line-2); font-weight: 700; text-transform: none; letter-spacing: normal; }
+.rich-text-content .selectedCell { background: var(--brand-tint); }
+.rich-text-content .column-resize-handle { background: var(--brand); width: 3px; }
+
+.tiptap-editor-shell {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  min-height: 140px;
+  background: var(--card);
+}
+.tiptap-editor-shell:focus-within {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px var(--brand-tint);
+}
+.tiptap-editor-shell .ProseMirror { outline: none; }

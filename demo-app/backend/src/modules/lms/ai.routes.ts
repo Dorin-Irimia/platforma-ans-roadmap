@@ -12,6 +12,18 @@ export const lmsAiRouter = Router();
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
 
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+// Blocurile TEXT stochează HTML (editor TipTap) — textul simplu întors de LLM
+// e împachetat în paragrafe HTML escapate, ca să rămână un conținut valid pentru editor.
+function textToHtmlParagraphs(text: string): string {
+  const paragraphs = text.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean);
+  if (paragraphs.length === 0) return "<p></p>";
+  return paragraphs.map((p) => `<p>${escapeHtml(p).replace(/\n/g, "<br>")}</p>`).join("");
+}
+
 function extractJson(raw: string): any {
   try {
     return JSON.parse(raw);
@@ -64,7 +76,7 @@ lmsAiRouter.post(
             courseId,
             title: l.title,
             order: existingCount + idx,
-            content: [{ id: randomUUID(), type: "TEXT", text: l.text }],
+            content: [{ id: randomUUID(), type: "TEXT", text: textToHtmlParagraphs(l.text) }],
           },
         })
       )
@@ -78,6 +90,9 @@ lmsAiRouter.post(
 const rewriteSchema = z.object({
   text: z.string().min(1),
   instruction: z.enum(["REWRITE", "ADAPT", "EXPAND", "SUMMARIZE"]),
+  // Restul lecției din jurul selecției — fără el, un fragment scurt/ambiguu (ex. un
+  // singur cuvânt) poate fi interpretat greșit de model ca "nu mi-ai dat niciun text".
+  context: z.string().optional(),
 });
 
 const INSTRUCTION_PROMPTS: Record<string, string> = {
@@ -91,8 +106,19 @@ lmsAiRouter.post("/ai/rewrite", requireAuth, async (req: AuthedRequest, res) => 
   const parsed = rewriteSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
   try {
+    const systemParts = [
+      `${INSTRUCTION_PROMPTS[parsed.data.instruction]} Răspunde doar cu textul rezultat, în română, fără explicații suplimentare, fără introduceri și fără să ceri clarificări.`,
+    ];
+    if (parsed.data.context && parsed.data.context.trim() !== parsed.data.text.trim()) {
+      // Contextul e restul lecției din jurul selecției — evită ca modelul să interpreteze
+      // greșit un fragment scurt (ex. un singur cuvânt) ca "nu mi s-a dat niciun text".
+      systemParts.push(
+        `Contextul complet al lecției (doar ca referință, NU îl rescrie): """${parsed.data.context.slice(0, 3000)}"""`,
+        `Fragmentul exact pe care trebuie să-l rescrii este cel din mesajul utilizatorului de mai jos — chiar dacă e scurt sau pare scos din context, el chiar reprezintă textul de rescris.`
+      );
+    }
     const result = await chatCompletion([
-      { role: "system", content: `${INSTRUCTION_PROMPTS[parsed.data.instruction]} Răspunde doar cu textul rezultat, în română, fără explicații suplimentare.` },
+      { role: "system", content: systemParts.join(" ") },
       { role: "user", content: parsed.data.text },
     ]);
     res.json({ result });

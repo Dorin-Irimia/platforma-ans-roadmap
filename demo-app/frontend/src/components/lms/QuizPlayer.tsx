@@ -2,17 +2,25 @@ import { useState } from "react";
 import { CheckCircle2, XCircle } from "lucide-react";
 import { T } from "../../theme";
 import { Button } from "../ui";
-import { submitQuizAttempt, LessonBlock } from "../../features/lms/api";
+import { submitQuizAttempt, correctIndexesOf, LessonBlock } from "../../features/lms/api";
 
 type QuizBlock = Extract<LessonBlock, { type: "QUIZ" }>;
 
 // Parcurgere test cu feedback vizual imediat corect/greșit (pct. 15) — scorul e
 // întotdeauna calculat server-side (vezi POST /lessons/:id/quiz-attempt), acest
-// component doar trimite răspunsurile alese și afișează rezultatul primit.
+// component doar trimite răspunsurile alese și afișează rezultatul primit. O întrebare
+// poate avea mai multe opțiuni corecte (checkbox) — punctajul cere setul EXACT, fără
+// punctaj parțial pentru un subset corect.
 export function QuizPlayer({ lessonId, quiz, onSubmitted }: { lessonId: string; quiz: QuizBlock; onSubmitted: (passed: boolean) => void }) {
-  const [answers, setAnswers] = useState<Record<string, number>>({});
+  const [answers, setAnswers] = useState<Record<string, number[]>>({});
   const [result, setResult] = useState<{ score: number; passed: boolean; correctCount: number; totalCount: number } | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  function toggleOption(questionId: string, oi: number) {
+    const current = answers[questionId] || [];
+    const next = current.includes(oi) ? current.filter((i) => i !== oi) : [...current, oi];
+    setAnswers({ ...answers, [questionId]: next });
+  }
 
   async function handleSubmit() {
     setSubmitting(true);
@@ -25,7 +33,7 @@ export function QuizPlayer({ lessonId, quiz, onSubmitted }: { lessonId: string; 
     }
   }
 
-  const allAnswered = quiz.questions.every((q) => answers[q.id] !== undefined);
+  const allAnswered = quiz.questions.every((q) => (answers[q.id] || []).length > 0);
 
   return (
     <div style={{ border: `1px solid ${T.line}`, borderRadius: 12, padding: 18, background: T.bgSoft }}>
@@ -36,23 +44,26 @@ export function QuizPlayer({ lessonId, quiz, onSubmitted }: { lessonId: string; 
         <div key={q.id} style={{ marginBottom: 14 }}>
           <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>{qi + 1}. {q.text}</div>
           {q.options.map((o, oi) => {
-            const isSelected = answers[q.id] === oi;
+            const isSelected = (answers[q.id] || []).includes(oi);
             const showFeedback = !!result;
-            const isCorrect = oi === q.correctIndex;
+            const isCorrect = correctIndexesOf(q).includes(oi);
             let color = T.ink2;
             if (showFeedback && isSelected) color = isCorrect ? T.success : T.danger;
             else if (showFeedback && isCorrect) color = T.success;
             return (
-              <label key={oi} style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 13.5, marginBottom: 4, color }}>
+              <label
+                key={oi}
+                id={qi === 0 && oi === 0 ? "lms-quiz-option" : undefined}
+                style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 13.5, marginBottom: 4, color }}
+              >
                 <input
-                  type="radio"
-                  name={q.id}
+                  type="checkbox"
                   disabled={!!result}
                   checked={isSelected}
-                  onChange={() => setAnswers({ ...answers, [q.id]: oi })}
+                  onChange={() => toggleOption(q.id, oi)}
                 />
                 {o}
-                {showFeedback && isSelected && (isCorrect ? <CheckCircle2 size={14} /> : <XCircle size={14} />)}
+                {showFeedback && (isSelected || isCorrect) && (isCorrect ? <CheckCircle2 size={14} /> : <XCircle size={14} />)}
               </label>
             );
           })}
@@ -64,7 +75,7 @@ export function QuizPlayer({ lessonId, quiz, onSubmitted }: { lessonId: string; 
           {submitting ? "Se trimite..." : "Trimite răspunsurile"}
         </Button>
       ) : (
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div id="lms-quiz-result-banner" style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <span style={{ fontSize: 14, fontWeight: 700, color: result.passed ? T.success : T.danger }}>
             Scor: {result.score}% ({result.correctCount}/{result.totalCount} corecte)
           </span>

@@ -66,6 +66,7 @@ function SidebarItem({ item, collapsed }: { item: NavItem; collapsed: boolean })
       to={item.to}
       end={item.to === "/"}
       title={item.label}
+      className="sidebar-item"
       style={({ isActive }) => ({
         display: "flex",
         alignItems: "center",

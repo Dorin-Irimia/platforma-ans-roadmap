@@ -71,7 +71,15 @@ export interface LmsQuizQuestion {
   id: string;
   text: string;
   options: string[];
-  correctIndex: number;
+  // Răspunsuri multiple corecte — set de indexuri. Întrebările vechi salvate doar cu
+  // `correctIndex` (un singur index) se citesc ca `[correctIndex]` — vezi `correctIndexesOf()`.
+  correctIndexes: number[];
+}
+
+export function correctIndexesOf(q: LmsQuizQuestion & { correctIndex?: number }): number[] {
+  if (q.correctIndexes) return q.correctIndexes;
+  if (typeof q.correctIndex === "number") return [q.correctIndex];
+  return [];
 }
 
 export interface LmsLessonDto {
@@ -128,8 +136,8 @@ export async function generateStructure(courseId: string, subject: string, file?
   return data;
 }
 
-export async function rewriteText(text: string, instruction: "REWRITE" | "ADAPT" | "EXPAND" | "SUMMARIZE"): Promise<string> {
-  const { data } = await api.post("/api/lms/ai/rewrite", { text, instruction });
+export async function rewriteText(text: string, instruction: "REWRITE" | "ADAPT" | "EXPAND" | "SUMMARIZE", context?: string): Promise<string> {
+  const { data } = await api.post("/api/lms/ai/rewrite", { text, instruction, context });
   return data.result as string;
 }
 
@@ -258,8 +266,34 @@ export async function downloadLessonAudio(text: string) {
 
 // --- Quiz ---
 
-export async function submitQuizAttempt(lessonId: string, answers: Record<string, number>): Promise<{ score: number; passed: boolean; correctCount: number; totalCount: number }> {
+export async function submitQuizAttempt(lessonId: string, answers: Record<string, number[]>): Promise<{ score: number; passed: boolean; correctCount: number; totalCount: number }> {
   const { data } = await api.post(`/api/lms/lessons/${lessonId}/quiz-attempt`, { answers });
+  return data;
+}
+
+export interface LmsQuizQuestionReport {
+  questionId: string;
+  text: string;
+  options: string[];
+  correctIndexes: number[];
+  optionCounts: number[];
+  answeredCount: number;
+  correctRate: number;
+}
+
+export interface LmsQuizLessonReport {
+  lessonId: string;
+  lessonTitle: string;
+  requiredScoreToUnlockNext: number;
+  attemptedCount: number;
+  passedCount: number;
+  passRate: number;
+  avgScore: number;
+  questions: LmsQuizQuestionReport[];
+}
+
+export async function fetchQuizReport(courseId: string): Promise<LmsQuizLessonReport[]> {
+  const { data } = await api.get(`/api/lms/courses/${courseId}/quiz-report`);
   return data;
 }
 

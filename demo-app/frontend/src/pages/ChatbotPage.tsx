@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useDropzone } from "react-dropzone";
-import { Mic, Send, Paperclip, Volume2, FileText, Plus, Search, Trash2, Pencil, FileOutput, Smile, Frown, AlertCircle } from "lucide-react";
+import { Mic, Send, Paperclip, Volume2, Square, FileText, Plus, Search, Trash2, Pencil, FileOutput, Smile, Frown, AlertCircle } from "lucide-react";
 import { AppShell } from "../components/AppShell";
 import { Card, Button, FieldLabel, SectionHeader, Pill } from "../components/ui";
 import { Modal } from "../components/Modal";
@@ -42,7 +42,7 @@ import {
   ConversationNeedingReviewDto,
   ChatSentiment,
 } from "../features/chatbot/api";
-import { isSpeechRecognitionSupported, startSpeechRecognition, isSpeechSynthesisSupported, speakText } from "../features/chatbot/speech";
+import { isSpeechRecognitionSupported, startSpeechRecognition, isSpeechSynthesisSupported, speakText, stopSpeech } from "../features/chatbot/speech";
 
 const STAFF_ROLES = ["SUPER_ADMIN", "ADMIN_INSTITUTIE", "MODERATOR", "EVALUATOR", "AUTOR", "CO_AUTOR"];
 
@@ -60,6 +60,17 @@ const SENTIMENT_ICON: Record<Exclude<ChatSentiment, "NEUTRU">, JSX.Element> = {
 function MessageBubble({ message, ttsId }: { message: ChatMessageDto; ttsId?: string }) {
   const isUser = message.role === "USER";
   const [preview, setPreview] = useState<{ filename: string; blobUrl: string } | null>(null);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+
+  function handleToggleSpeech() {
+    if (isSpeaking) {
+      stopSpeech();
+      setIsSpeaking(false);
+      return;
+    }
+    setIsSpeaking(true);
+    speakText(message.content, () => setIsSpeaking(false));
+  }
 
   async function handleAttachmentClick(a: { id: string; filename: string; mimeType: string }) {
     const url = await fetchAttachmentBlobUrl(a.id);
@@ -109,15 +120,15 @@ function MessageBubble({ message, ttsId }: { message: ChatMessageDto; ttsId?: st
             ))}
           </div>
         )}
-        {preview && (
-          <Modal onClose={() => setPreview(null)} width="auto" maxHeight="88vh">
+        <Modal isOpen={!!preview} onClose={() => setPreview(null)} width="auto" maxHeight="88vh">
+          {preview && (
             <Card style={{ maxHeight: "88vh", overflowY: "auto" }}>
               <SectionHeader title={preview.filename} />
               <PdfPreview fileUrl={preview.blobUrl} width={560} />
               <Button variant="ghost" style={{ marginTop: 14 }} onClick={() => setPreview(null)}>Închide</Button>
             </Card>
-          </Modal>
-        )}
+          )}
+        </Modal>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
           {message.inputMethod === "VOICE" && (
             <span style={{ fontSize: 10.5, opacity: 0.8, display: "flex", alignItems: "center", gap: 3 }}>
@@ -132,11 +143,11 @@ function MessageBubble({ message, ttsId }: { message: ChatMessageDto; ttsId?: st
           {!isUser && isSpeechSynthesisSupported() && (
             <button
               id={ttsId}
-              onClick={() => speakText(message.content)}
-              title="Ascultă răspunsul"
-              style={{ background: "none", border: "none", cursor: "pointer", color: T.ink3, padding: 0, display: "flex" }}
+              onClick={handleToggleSpeech}
+              title={isSpeaking ? "Oprește" : "Ascultă răspunsul"}
+              style={{ background: "none", border: "none", cursor: "pointer", color: isSpeaking ? T.brand : T.ink3, padding: 0, display: "flex" }}
             >
-              <Volume2 size={13} />
+              {isSpeaking ? <Square size={12} fill={T.brand} /> : <Volume2 size={13} />}
             </button>
           )}
         </div>
@@ -195,7 +206,7 @@ function GenerateDocumentModal({ conversationId, onClose, onGenerated }: { conve
   // PDF-ul final și a-l atașa în conversație.
   if (preview) {
     return (
-      <Modal onClose={onClose} width={560}>
+      <Modal isOpen onClose={onClose} width={560}>
           <Card>
             <SectionHeader title={`Previzualizare — ${preview.title}`} />
             <div
@@ -225,7 +236,7 @@ function GenerateDocumentModal({ conversationId, onClose, onGenerated }: { conve
   }
 
   return (
-    <Modal onClose={onClose} width={460}>
+    <Modal isOpen onClose={onClose} width={460}>
         <Card>
           <SectionHeader title="Generează document din șablon" />
           <FieldLabel>Șablon</FieldLabel>

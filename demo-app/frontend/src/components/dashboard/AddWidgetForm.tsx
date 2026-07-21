@@ -118,7 +118,7 @@ export function AddWidgetForm({ widget, existingWidgets, onClose, onSaved }: Pro
   }
 
   return (
-    <Modal onClose={onClose} width={480} maxHeight="88vh">
+    <Modal isOpen onClose={onClose} width={480} maxHeight="88vh">
         <Card>
           <SectionHeader title={isEdit ? "Editează modulul" : "Adaugă modul nou"} />
 

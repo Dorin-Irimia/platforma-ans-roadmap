@@ -16,6 +16,12 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 
 
 const MAX_RESOURCE_EXCERPT = 1500;
 
+// Blocurile TEXT stochează HTML (editor TipTap) — pentru promptul AI avem nevoie
+// doar de conținutul text, altfel tag-urile brute ar polua contextul trimis la LLM.
+function stripHtml(html: string): string {
+  return html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+}
+
 // Materiale pentru "adaptarea" asistentului (pct. 3) — textul extras chiar ajunge în
 // promptul de sistem (grounding real), la fel cum baza de cunoștințe a Chatbot-ului
 // (`ChatKnowledgeDocument`) fundamentează răspunsurile acolo. Nu antrenează niciun model.
@@ -151,7 +157,7 @@ lmsAssistantRouter.post("/lessons/:id/ask", requireAuth, async (req: AuthedReque
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
   const content = Array.isArray(lesson.content) ? (lesson.content as any[]) : [];
-  const lessonText = content.filter((b) => b.type === "TEXT").map((b) => b.text).join("\n\n");
+  const lessonText = content.filter((b) => b.type === "TEXT").map((b) => stripHtml(b.text)).join("\n\n");
 
   const intents = await prisma.lmsIntent.findMany({ where: { courseId: lesson.courseId } });
   const lower = parsed.data.question.toLowerCase();

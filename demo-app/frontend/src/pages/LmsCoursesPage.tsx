@@ -35,17 +35,17 @@ function CreateCourseModal({ onClose, onCreated }: { onClose: () => void; onCrea
   }
 
   return (
-    <Modal onClose={onClose} width={440}>
+    <Modal isOpen onClose={onClose} width={440}>
         <Card>
           <SectionHeader title="Curs nou" />
           <FieldLabel>Titlu</FieldLabel>
-          <input value={title} onChange={(e) => setTitle(e.target.value)} style={{ width: "100%", marginBottom: 12 }} />
+          <input id="lms-create-course-title-input" value={title} onChange={(e) => setTitle(e.target.value)} style={{ width: "100%", marginBottom: 12 }} />
           <FieldLabel>Descriere</FieldLabel>
           <textarea value={description} onChange={(e) => setDescription(e.target.value)} style={{ width: "100%", minHeight: 80, marginBottom: 14 }} />
           {error && <p style={{ color: T.danger, fontSize: 13 }}>{error}</p>}
           <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
             <Button variant="ghost" onClick={onClose}>Anulează</Button>
-            <Button onClick={handleCreate} style={{ opacity: saving ? 0.6 : 1 }}>{saving ? "Se creează..." : "Creează"}</Button>
+            <Button id="lms-create-course-submit-btn" onClick={handleCreate} style={{ opacity: saving ? 0.6 : 1 }}>{saving ? "Se creează..." : "Creează"}</Button>
           </div>
         </Card>
     </Modal>

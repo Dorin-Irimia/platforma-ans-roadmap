@@ -31,6 +31,8 @@ export interface Tour {
 
 const STAFF_ROLES = ["SUPER_ADMIN", "ADMIN_INSTITUTIE", "MODERATOR", "EVALUATOR", "AUTOR", "CO_AUTOR"];
 const ADMIN_ROLES = ["SUPER_ADMIN", "ADMIN_INSTITUTIE"];
+// Aceleași roluri ca CREATOR_ROLES din LmsCoursesPage.tsx — cine poate crea efectiv un curs.
+const LMS_CREATOR_ROLES = ["SUPER_ADMIN", "ADMIN_INSTITUTIE", "AUTOR"];
 
 // Id DOM stabil pentru linkul din sidebar corespunzător unei rute — folosit atât la
 // randarea sidebar-ului (`AppShell.tsx`) cât și la pasul sintetic de navigare de mai jos,
@@ -427,6 +429,167 @@ export const TOURS: Tour[] = [
         targetId: "lms-quiz-submit-btn",
         title: "Pct. 15 — Evaluări și Barieră Logică",
         description: "Trimite răspunsurile la testul lecției — feedback imediat corect/greșit. Sub scorul minim configurat, lecția următoare rămâne blocată (verificat și server-side, nu doar vizual).",
+      },
+    ],
+  },
+  {
+    id: "lms-organizator",
+    label: "LMS — Organizator, proiect nou, generare AI, drag-and-drop",
+    route: "/lms",
+    roles: LMS_CREATOR_ROLES,
+    // Tur focalizat strict pe cerința: accesarea Organizatorului + creare proiect nou +
+    // generare AI a structurii (din subiect scris SAU fișier încărcat) + editare
+    // drag-and-drop a materialului — spre deosebire de scenariul-5 (care acoperă tot
+    // modulul LMS, ~30 pași). Util când trebuie demonstrat/înregistrat DOAR acest fragment.
+    steps: [
+      {
+        targetId: "lms-new-course-btn",
+        title: "Organizatorul (tabloul de bord)",
+        description: "Tabloul de bord LMS listează toate proiectele (cursurile) existente — acesta e Organizatorul. Apasă „+ Curs nou” pentru a începe un proiect nou.",
+      },
+      {
+        targetId: "lms-create-course-title-input",
+        title: "Creare proiect nou — titlu",
+        description: "Dă un titlu proiectului nou.",
+      },
+      {
+        targetId: "lms-create-course-submit-btn",
+        title: "Creare proiect nou — confirmare",
+        description: "Apasă „Creează” — proiectul se creează și intri direct în editorul de curs.",
+      },
+      {
+        targetId: "lms-generate-structure-btn",
+        awaitRoute: "/lms/courses/:id",
+        title: "Asistent AI — deschide generarea structurii",
+        description: "În editor, apasă „Generează structură AI”.",
+      },
+      {
+        targetId: "lms-generate-structure-subject-input",
+        title: "Asistent AI — subiect scris SAU fișier încărcat",
+        description: "Scrie un subiect/descriere a materialului în câmpul de text — SAU, alternativ, încarcă direct un fișier (câmpul de mai jos) cu conținutul sursă. Poți folosi oricare dintre cele două, sau ambele.",
+      },
+      {
+        targetId: "lms-generate-structure-submit-btn",
+        title: "Asistent AI — generare automată",
+        description: "Apasă „Generează” — AI-ul produce automat 3-6 lecții structurate, pe baza subiectului scris și/sau a fișierului încărcat.",
+      },
+      {
+        targetId: "lms-editor-lesson-row",
+        title: "Editare drag-and-drop — lecții",
+        description: "Trage o lecție de mânerul ei pentru a-i schimba ordinea în listă. Funcționează și de la tastatură (Tab la mâner, Space ridică, săgeți mută, Space lasă jos) — accesibil, nu doar cu mouse-ul.",
+      },
+      {
+        targetId: "lms-block-drag-handle",
+        title: "Editare drag-and-drop — blocuri de conținut",
+        description: "În interiorul unei lecții, fiecare bloc de conținut (text/imagine/video/test) are propriul mâner de tras — reordonează blocurile la fel, prin drag-and-drop.",
+      },
+    ],
+  },
+  {
+    id: "lms-colaborare",
+    label: "LMS — Colaborare și Feedback (Co-autor, comentarii, rubrică)",
+    route: "/lms",
+    roles: LMS_CREATOR_ROLES,
+    // Tur focalizat strict pe cerința "Colaborare și Feedback" — spre deosebire de
+    // scenariul-5 (pct. 12a-12c), care doar deschide tab-ul și adaugă un criteriu, fără
+    // pași dedicați pentru trimiterea propriu-zisă a comentariului, rezolvarea lui sau
+    // salvarea efectivă a unui scor pe rubrică.
+    steps: [
+      {
+        targetId: "lms-first-course-card",
+        awaitRoute: "/lms/courses/:id",
+        title: "Deschide un proiect existent",
+        description: "Din Organizator, intră într-un curs la care vrei să inviți un colaborator.",
+      },
+      {
+        targetId: "lms-invite-coauthor-btn",
+        title: "Invitare Co-autor",
+        description: "Apasă „Invită Co-autor” — alege un cont existent din listă. Contul invitat primește acces de colaborare (rol Co-autor) pe acest curs.",
+      },
+      {
+        targetId: "lms-editor-tab-colaborare",
+        title: "Deschide panoul de revizuire",
+        description: "Tab-ul „Colaborare” — necesită o lecție selectată în tab-ul „Lecții” (panoul de revizuire e scopat pe lecția activă).",
+      },
+      {
+        targetId: "lms-comment-send-btn",
+        title: "Comentariu contextual pe un element specific",
+        description: "Alege blocul de conținut (text/imagine/video/test) din select-ul de mai sus, scrie comentariul, apoi apasă „Trimite” — comentariul rămâne asociat exact acelui bloc, nu doar lecției în general.",
+      },
+      {
+        targetId: "lms-comment-resolve-btn",
+        title: "Rezolvarea unui comentariu",
+        description: "Lângă un comentariu nerezolvat, apasă „Marchează ca rezolvat” — dispare butonul și apare eticheta verde „Rezolvat”.",
+      },
+      {
+        targetId: "lms-rubric-add-criterion-btn",
+        title: "Rubrică de evaluare — criterii",
+        description: "Adaugă un criteriu de evaluare (rubrica e comună pentru tot cursul, nu doar pentru lecția curentă).",
+      },
+      {
+        targetId: "lms-rubric-save-score-btn",
+        title: "Feedback structurat — salvare scor",
+        description: "Completează un punctaj pentru fiecare criteriu, apoi apasă „Salvează scorul” — scorul se înregistrează per lecție, per evaluator, vizibil apoi în istoricul „Scoruri anterioare”.",
+      },
+    ],
+  },
+  {
+    id: "lms-cursant-acces",
+    label: "LMS — Acces și parcurgere conținut (cursant)",
+    route: "/lms",
+    // Fără `roles` — vizibil oricărui cont autentificat, la fel ca Scenariul 3 (Chatbot):
+    // accesul de cursant nu necesită un rol special (spre deosebire de turul "Organizator",
+    // rezervat rolurilor care pot crea cursuri).
+    steps: [
+      {
+        targetId: "",
+        gap: true,
+        title: "Autentificare securizată",
+        description: "Se demonstrează separat, ÎNAINTE de acest tur: deconectează-te, apoi autentifică-te din nou (cu 2FA activat, dacă e cazul — vezi pagina Securitate). Revino aici după login pentru a continua turul.",
+      },
+      {
+        targetId: "lms-first-course-card",
+        awaitRoute: "/lms/courses/:id/learn",
+        title: "Accesarea unui curs publicat din tabloul de bord",
+        description: "Lista de cursuri arată aici doar cursurile publicate (pentru un cont de cursant, nu ciornele) — dă click pe un curs pentru a intra direct în vizualizarea de cursant, nu în editor.",
+      },
+      {
+        targetId: "lms-player-lesson-content",
+        title: "Reluare exact de unde ai rămas",
+        description: "Progresul (lecția curentă) e salvat pe cont, nu în browser — la redeschiderea cursului, inclusiv de pe alt dispozitiv, te întorci automat la aceeași lecție la care ai rămas, fără niciun pas manual.",
+      },
+    ],
+  },
+  {
+    id: "lms-evaluari-bariera",
+    label: "LMS — Evaluări și Bariera Logică (cursant)",
+    route: "/lms",
+    steps: [
+      {
+        targetId: "lms-first-course-card",
+        awaitRoute: "/lms/courses/:id/learn",
+        title: "Deschide un curs cu secțiune de testare",
+        description: "Intră într-un curs care are o lecție cu bloc de tip Test.",
+      },
+      {
+        targetId: "lms-quiz-option",
+        title: "Răspuns la întrebări",
+        description: "Alege câte un răspuns pentru fiecare întrebare a testului.",
+      },
+      {
+        targetId: "lms-quiz-submit-btn",
+        title: "Trimite răspunsurile",
+        description: "Apasă „Trimite răspunsurile” — scorul se calculează întotdeauna pe server, niciodată doar în browser.",
+      },
+      {
+        targetId: "lms-quiz-result-banner",
+        title: "Feedback vizual imediat",
+        description: "Fiecare opțiune se colorează instant — verde pentru răspunsul corect, roșu pentru cel greșit ales — plus scorul final și mesajul de deblocare/blocare.",
+      },
+      {
+        targetId: "lms-player-locked-lesson",
+        title: "Bariera Logică",
+        description: "Sub scorul minim configurat pe test, lecția următoare rămâne vizibil blocată (iconiță de lacăt, opacitate redusă) — și blocată real, verificat și pe server, nu doar ascunsă vizual: nu poate fi ocolită apelând API-ul direct.",
       },
     ],
   },

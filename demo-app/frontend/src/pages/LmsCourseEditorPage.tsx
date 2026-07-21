@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Monitor, Tablet, Smartphone, Eye, Sparkles, Plus, GripVertical, UserPlus } from "lucide-react";
+import { Monitor, Tablet, Smartphone, Eye, Sparkles, Plus, GripVertical, UserPlus, ChevronDown, ChevronRight, CheckCircle2 } from "lucide-react";
+import { DndContext, closestCenter, PointerSensor, KeyboardSensor, useSensor, useSensors, DragEndEvent } from "@dnd-kit/core";
+import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove, sortableKeyboardCoordinates } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { AppShell } from "../components/AppShell";
 import { Card, Button, FieldLabel, SectionHeader, Pill } from "../components/ui";
 import { Modal } from "../components/Modal";
@@ -17,10 +20,12 @@ import {
   generateStructure,
   addCollaborator,
   fetchCourseEnrollments,
+  fetchQuizReport,
   LmsCourseSummary,
   LmsLessonDto,
   LessonBlock,
   LmsEnrollmentRosterDto,
+  LmsQuizLessonReport,
 } from "../features/lms/api";
 import { LessonBlocksView } from "../components/lms/LessonBlocksView";
 import { BlockEditor } from "../components/lms/BlockEditor";
@@ -28,6 +33,65 @@ import { ReviewPanel } from "../components/lms/ReviewPanel";
 import { AssistantPanel } from "../components/lms/AssistantPanel";
 
 const PREVIEW_WIDTHS: Record<"desktop" | "tablet" | "mobile", string> = { desktop: "100%", tablet: "768px", mobile: "375px" };
+
+// Reordonare lecții prin drag-and-drop (@dnd-kit — accesibil de la tastatură/touch,
+// înlocuiește DnD-ul HTML5 nativ folosit anterior). Handle-ul dedicat (GripVertical)
+// primește listener-ii de drag, nu tot rândul, ca "onClick" de selecție să rămână
+// neatins (același rând rămâne clickabil normal pentru a activa lecția).
+function SortableLessonRow({ lesson, isActive, isFirst, onSelect }: { lesson: LmsLessonDto; isActive: boolean; isFirst: boolean; onSelect: () => void }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: lesson.id });
+  return (
+    <div
+      ref={setNodeRef}
+      id={isFirst ? "lms-editor-lesson-row" : undefined}
+      onClick={onSelect}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 6,
+        padding: "8px 10px",
+        borderRadius: 8,
+        cursor: "pointer",
+        background: isActive ? T.brandTint : "transparent",
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.5 : 1,
+      }}
+    >
+      <button {...attributes} {...listeners} style={{ background: "none", border: "none", cursor: "grab", padding: 0, display: "flex" }} aria-label="Reordonează lecția">
+        <GripVertical size={13} color={T.ink4} />
+      </button>
+      <span style={{ fontSize: 13, fontWeight: isActive ? 700 : 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{lesson.title}</span>
+    </div>
+  );
+}
+
+// Reordonare blocuri de conținut (text/imagine/video/quiz) în interiorul unei lecții —
+// funcție nouă, nu exista deloc înainte (doar adăugare/ștergere de blocuri). Handle-ul
+// e pasat ca prop în BlockEditor, ca acesta să rămână agnostic de mecanismul de DnD.
+function SortableBlockItem({ block, isFirst, onChange, onRemove }: { block: LessonBlock; isFirst: boolean; onChange: (b: LessonBlock) => void; onRemove: () => void }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: block.id });
+  return (
+    <div ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 }}>
+      <BlockEditor
+        block={block}
+        onChange={onChange}
+        onRemove={onRemove}
+        dragHandle={
+          <button
+            id={isFirst ? "lms-block-drag-handle" : undefined}
+            {...attributes}
+            {...listeners}
+            style={{ background: "none", border: "none", cursor: "grab", padding: 0, display: "flex", color: T.ink4 }}
+            aria-label="Reordonează blocul"
+          >
+            <GripVertical size={14} />
+          </button>
+        }
+      />
+    </div>
+  );
+}
 
 function GenerateStructureModal({ courseId, onClose, onGenerated }: { courseId: string; onClose: () => void; onGenerated: () => void }) {
   const [subject, setSubject] = useState("");
@@ -49,17 +113,17 @@ function GenerateStructureModal({ courseId, onClose, onGenerated }: { courseId: 
   }
 
   return (
-    <Modal onClose={onClose} width={460}>
+    <Modal isOpen onClose={onClose} width={460}>
         <Card>
           <SectionHeader title="Generează structură cu AI" />
           <FieldLabel>Subiect / descriere material</FieldLabel>
-          <textarea value={subject} onChange={(e) => setSubject(e.target.value)} style={{ width: "100%", minHeight: 100, marginBottom: 12 }} placeholder="ex: Introducere în managementul proiectelor sportive..." />
+          <textarea id="lms-generate-structure-subject-input" value={subject} onChange={(e) => setSubject(e.target.value)} style={{ width: "100%", minHeight: 100, marginBottom: 12 }} placeholder="ex: Introducere în managementul proiectelor sportive..." />
           <FieldLabel>Sau încarcă un fișier (opțional)</FieldLabel>
-          <input type="file" onChange={(e) => setFile(e.target.files?.[0] || null)} style={{ marginBottom: 14 }} />
+          <input id="lms-generate-structure-file-input" type="file" onChange={(e) => setFile(e.target.files?.[0] || null)} style={{ marginBottom: 14 }} />
           {error && <p style={{ color: T.danger, fontSize: 13 }}>{error}</p>}
           <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
             <Button variant="ghost" onClick={onClose}>Anulează</Button>
-            <Button onClick={handleGenerate} style={{ opacity: busy ? 0.6 : 1 }}>{busy ? "Se generează..." : "Generează"}</Button>
+            <Button id="lms-generate-structure-submit-btn" onClick={handleGenerate} style={{ opacity: busy ? 0.6 : 1 }}>{busy ? "Se generează..." : "Generează"}</Button>
           </div>
         </Card>
     </Modal>
@@ -81,7 +145,7 @@ function InviteCollaboratorModal({ courseId, onClose, onInvited }: { courseId: s
   }
 
   return (
-    <Modal onClose={onClose} width={400}>
+    <Modal isOpen onClose={onClose} width={400}>
         <Card>
           <SectionHeader title="Invită Co-autor" />
           <FieldLabel>Utilizator</FieldLabel>
@@ -137,6 +201,79 @@ function EnrollmentsTab({ courseId }: { courseId: string }) {
   );
 }
 
+// Raport agregat de răspunsuri la teste, per curs — pentru fiecare lecție cu test,
+// rezumat (cursanți testați/promovare/scor mediu) + un breakdown expandabil per întrebare
+// (distribuția opțiunilor alese, opțiunile corecte evidențiate).
+function QuizReportTab({ courseId }: { courseId: string }) {
+  const [report, setReport] = useState<LmsQuizLessonReport[]>([]);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    fetchQuizReport(courseId).then(setReport).catch(() => setReport([]));
+  }, [courseId]);
+
+  function toggle(lessonId: string) {
+    const next = new Set(expanded);
+    if (next.has(lessonId)) next.delete(lessonId);
+    else next.add(lessonId);
+    setExpanded(next);
+  }
+
+  if (report.length === 0) {
+    return <p style={{ color: T.ink3 }}>Niciun test nu are încă răspunsuri înregistrate.</p>;
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      {report.map((r) => (
+        <Card key={r.lessonId} style={{ padding: 16 }}>
+          <div
+            onClick={() => toggle(r.lessonId)}
+            style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              {expanded.has(r.lessonId) ? <ChevronDown size={15} color={T.ink3} /> : <ChevronRight size={15} color={T.ink3} />}
+              <div style={{ fontWeight: 700, fontSize: 14.5 }}>{r.lessonTitle}</div>
+            </div>
+            <div style={{ display: "flex", gap: 18, fontSize: 12.5, color: T.ink3 }}>
+              <span>{r.attemptedCount} cursanți testați</span>
+              <span>Promovare: <b style={{ color: T.ink }}>{r.passRate}%</b></span>
+              <span>Scor mediu: <b style={{ color: T.ink }}>{r.avgScore}%</b></span>
+            </div>
+          </div>
+
+          {expanded.has(r.lessonId) && (
+            <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 16 }}>
+              {r.questions.map((q, qi) => (
+                <div key={q.questionId} style={{ borderTop: `1px solid ${T.line}`, paddingTop: 12 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 600, marginBottom: 8 }}>
+                    {qi + 1}. {q.text} <span style={{ fontWeight: 400, color: T.ink3, fontSize: 12 }}>({q.correctRate}% răspunsuri corecte din {q.answeredCount})</span>
+                  </div>
+                  {q.options.map((o, oi) => {
+                    const isCorrect = q.correctIndexes.includes(oi);
+                    const pct = q.answeredCount ? Math.round((q.optionCounts[oi] / q.answeredCount) * 100) : 0;
+                    return (
+                      <div key={oi} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 5, fontSize: 12.5 }}>
+                        <div style={{ width: 160, flexShrink: 0, display: "flex", alignItems: "center", gap: 4, color: isCorrect ? T.success : T.ink2, fontWeight: isCorrect ? 700 : 400 }}>
+                          {isCorrect && <CheckCircle2 size={12} />} {o}
+                        </div>
+                        <div style={{ flex: 1, height: 8, background: T.line2, borderRadius: 4, overflow: "hidden" }}>
+                          <div style={{ width: `${pct}%`, height: "100%", background: isCorrect ? T.success : T.brand, borderRadius: 4 }} />
+                        </div>
+                        <div style={{ width: 60, textAlign: "right", color: T.ink3 }}>{q.optionCounts[oi]} ({pct}%)</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+      ))}
+    </div>
+  );
+}
+
 export default function LmsCourseEditorPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -145,12 +282,12 @@ export default function LmsCourseEditorPage() {
   const [activeLessonId, setActiveLessonId] = useState<string | null>(null);
   const [draftContent, setDraftContent] = useState<LessonBlock[]>([]);
   const [draftDirty, setDraftDirty] = useState(false);
-  const [tab, setTab] = useState<"lectii" | "colaborare" | "asistent" | "cursanti">("lectii");
+  const [tab, setTab] = useState<"lectii" | "colaborare" | "asistent" | "cursanti" | "rapoarte">("lectii");
   const [previewing, setPreviewing] = useState(false);
   const [previewWidth, setPreviewWidth] = useState<"desktop" | "tablet" | "mobile">("desktop");
   const [showGenerate, setShowGenerate] = useState(false);
   const [showInvite, setShowInvite] = useState(false);
-  const [dragId, setDragId] = useState<string | null>(null);
+  const sensors = useSensors(useSensor(PointerSensor), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
 
   function loadCourse() {
     if (!id) return;
@@ -200,17 +337,24 @@ export default function LmsCourseEditorPage() {
     setDraftDirty(true);
   }
 
-  async function handleDrop(targetId: string) {
-    if (!dragId || dragId === targetId || !id) return;
-    const reordered = [...lessons];
-    const fromIdx = reordered.findIndex((l) => l.id === dragId);
-    const toIdx = reordered.findIndex((l) => l.id === targetId);
-    const [moved] = reordered.splice(fromIdx, 1);
-    reordered.splice(toIdx, 0, moved);
+  async function handleLessonDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id || !id) return;
+    const oldIdx = lessons.findIndex((l) => l.id === active.id);
+    const newIdx = lessons.findIndex((l) => l.id === over.id);
+    const reordered = arrayMove(lessons, oldIdx, newIdx);
     setLessons(reordered);
-    setDragId(null);
     await reorderLessons(id, reordered.map((l, idx) => ({ id: l.id, order: idx })));
     loadLessons();
+  }
+
+  function handleBlockDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIdx = draftContent.findIndex((b) => b.id === active.id);
+    const newIdx = draftContent.findIndex((b) => b.id === over.id);
+    setDraftContent(arrayMove(draftContent, oldIdx, newIdx));
+    setDraftDirty(true);
   }
 
   if (!course) return <AppShell title="Curs" subtitle="Se încarcă..."><div /></AppShell>;
@@ -231,7 +375,7 @@ export default function LmsCourseEditorPage() {
       </div>
 
       <div style={{ display: "flex", gap: 8, marginBottom: 20, borderBottom: `1px solid ${T.line}` }}>
-        {[{ key: "lectii" as const, label: "Lecții" }, { key: "colaborare" as const, label: "Colaborare" }, { key: "asistent" as const, label: "Asistent" }, { key: "cursanti" as const, label: "Cursanți" }].map((t) => (
+        {[{ key: "lectii" as const, label: "Lecții" }, { key: "colaborare" as const, label: "Colaborare" }, { key: "asistent" as const, label: "Asistent" }, { key: "cursanti" as const, label: "Cursanți" }, { key: "rapoarte" as const, label: "Rapoarte" }].map((t) => (
           <button
             key={t.key}
             id={`lms-editor-tab-${t.key}`}
@@ -246,23 +390,15 @@ export default function LmsCourseEditorPage() {
       {tab === "lectii" && (
         <div style={{ display: "grid", gridTemplateColumns: "240px 1fr", gap: 20 }}>
           <Card style={{ padding: 10 }}>
-            <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 10 }}>
-              {lessons.map((l, lIdx) => (
-                <div
-                  key={l.id}
-                  id={lIdx === 0 ? "lms-editor-lesson-row" : undefined}
-                  draggable
-                  onDragStart={() => setDragId(l.id)}
-                  onDragOver={(e) => e.preventDefault()}
-                  onDrop={() => handleDrop(l.id)}
-                  onClick={() => setActiveLessonId(l.id)}
-                  style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 10px", borderRadius: 8, cursor: "pointer", background: activeLessonId === l.id ? T.brandTint : "transparent" }}
-                >
-                  <GripVertical size={13} color={T.ink4} />
-                  <span style={{ fontSize: 13, fontWeight: activeLessonId === l.id ? 700 : 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{l.title}</span>
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleLessonDragEnd}>
+              <SortableContext items={lessons.map((l) => l.id)} strategy={verticalListSortingStrategy}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 10 }}>
+                  {lessons.map((l, lIdx) => (
+                    <SortableLessonRow key={l.id} lesson={l} isActive={activeLessonId === l.id} isFirst={lIdx === 0} onSelect={() => setActiveLessonId(l.id)} />
+                  ))}
                 </div>
-              ))}
-            </div>
+              </SortableContext>
+            </DndContext>
             <Button variant="ghost" style={{ width: "100%", fontSize: 12, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }} onClick={handleAddLesson}>
               <Plus size={13} /> Lecție nouă
             </Button>
@@ -305,16 +441,21 @@ export default function LmsCourseEditorPage() {
                 </div>
               </div>
 
-              <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 16 }}>
-                {draftContent.map((block, idx) => (
-                  <BlockEditor
-                    key={block.id}
-                    block={block}
-                    onChange={(b) => { setDraftContent(draftContent.map((x, i) => (i === idx ? b : x))); setDraftDirty(true); }}
-                    onRemove={() => { setDraftContent(draftContent.filter((_, i) => i !== idx)); setDraftDirty(true); }}
-                  />
-                ))}
-              </div>
+              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleBlockDragEnd}>
+                <SortableContext items={draftContent.map((b) => b.id)} strategy={verticalListSortingStrategy}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 16 }}>
+                    {draftContent.map((block, idx) => (
+                      <SortableBlockItem
+                        key={block.id}
+                        block={block}
+                        isFirst={idx === 0}
+                        onChange={(b) => { setDraftContent(draftContent.map((x, i) => (i === idx ? b : x))); setDraftDirty(true); }}
+                        onRemove={() => { setDraftContent(draftContent.filter((_, i) => i !== idx)); setDraftDirty(true); }}
+                      />
+                    ))}
+                  </div>
+                </SortableContext>
+              </DndContext>
 
               <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
                 <Button variant="ghost" style={{ fontSize: 12 }} onClick={() => addBlock("TEXT")}>+ Text</Button>
@@ -336,6 +477,7 @@ export default function LmsCourseEditorPage() {
 
       {tab === "asistent" && <AssistantPanel courseId={course.id} />}
       {tab === "cursanti" && <EnrollmentsTab courseId={course.id} />}
+      {tab === "rapoarte" && <QuizReportTab courseId={course.id} />}
 
       {showGenerate && <GenerateStructureModal courseId={course.id} onClose={() => setShowGenerate(false)} onGenerated={() => { setShowGenerate(false); loadLessons(); }} />}
       {showInvite && <InviteCollaboratorModal courseId={course.id} onClose={() => setShowInvite(false)} onInvited={() => { setShowInvite(false); loadCourse(); }} />}

@@ -83,7 +83,7 @@ function RegistriesPanel({ onClose }: { onClose: () => void }) {
   const iesireRegistries = registries.filter((r) => r.kind === "IESIRE");
 
   return (
-    <Modal onClose={onClose} width={720} maxHeight="86vh">
+    <Modal isOpen onClose={onClose} width={720} maxHeight="86vh">
         <Card>
           <SectionHeader title="Registre de numerotare" />
           <p style={{ fontSize: 12.5, color: T.ink3, marginTop: -8, marginBottom: 16 }}>Fiecare registru are propriul contor anual — poate porni de la orice număr ales.</p>

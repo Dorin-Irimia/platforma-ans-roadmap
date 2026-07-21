@@ -661,7 +661,7 @@ function CreateDefModal({ onClose, onCreated }: { onClose: () => void; onCreated
   }
 
   return (
-    <Modal onClose={onClose} width={720} maxHeight="88vh">
+    <Modal isOpen onClose={onClose} width={720} maxHeight="88vh">
         <Card>
           <SectionHeader title="Flux de lucru nou" />
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>

@@ -13,7 +13,8 @@ const quizQuestionSchema = z.object({
   id: z.string(),
   text: z.string().min(1),
   options: z.array(z.string()).min(2),
-  correctIndex: z.number().int().min(0),
+  // Răspunsuri multiple corecte — un set de indexuri, nu un singur index.
+  correctIndexes: z.array(z.number().int().min(0)).min(1),
 });
 
 const blockSchema = z.discriminatedUnion("type", [
