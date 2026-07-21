@@ -17,17 +17,48 @@ Prototip funcțional care acoperă cele 5 scenarii obligatorii din Capitolul 8 a
 - Bază de date: PostgreSQL (via Prisma ORM).
 - Rulare locală: Docker Compose.
 
-## Cum rulezi local
+## Pornire pe un dispozitiv nou
 
-```bash
-docker compose up --build
-# backend:  http://localhost:4000
-# frontend: http://localhost:5173
-```
+### Ce trebuie instalat
 
-Nu sunt necesare migrări manuale — la fiecare pornire, containerul de backend sincronizează automat schema Postgres (`prisma db push`) înainte de a porni serverul. Documentele generate/atașate se scriu într-un volum Docker persistent (`documents_storage`), deci rămân disponibile și după `docker compose down`/`up` (dispar doar la `docker compose down -v`).
+- **[Docker Desktop](https://www.docker.com/products/docker-desktop/)** (include Docker Compose) — tot ce rulează (backend, frontend, Postgres, Redis) pornește în containere; nu trebuie instalat Node.js, PostgreSQL sau Redis direct pe calculator.
+- **Git**.
 
-Primul cont înregistrat în sistem devine automat Super Admin (are acces la Utilizatori și Jurnal de audit); conturile ulterioare primesc rolul standard.
+### Pași
+
+1. **Clonează repo-ul**
+   ```bash
+   git clone https://github.com/Dorin-Irimia/platforma-ans-roadmap.git
+   cd platforma-ans-roadmap/demo-app
+   ```
+
+2. **Creează un proiect Supabase propriu** (gratuit) — aplicația nu are un sistem de autentificare propriu, folosește [Supabase Auth](https://supabase.com/dashboard) pentru login/2FA. Fiecare instalare (fiecare dispozitiv/persoană) are nevoie de propriul proiect Supabase — nu se poate reutiliza cel al altcuiva, cheile sunt legate de proiect.
+   - Mergi pe [supabase.com/dashboard](https://supabase.com/dashboard) → **New project** (planul gratuit e suficient).
+   - După ce proiectul e gata, mergi la **Settings → API** — de acolo iei valorile de la pasul următor.
+
+3. **Copiază fișierele `.env.example` în `.env`**
+   ```bash
+   cp backend/.env.example backend/.env
+   cp frontend/.env.example frontend/.env
+   ```
+   Fișierele `.env` conțin chei reale/secrete, sunt excluse din git (`.gitignore`) — nu le comite niciodată. Fișierele `.env.example` rămân în repo ca șablon, fără valori reale.
+
+4. **Completează valorile Supabase în cele două `.env`** (restul valorilor din `.env.example` — `DATABASE_URL`, `REDIS_URL`, `PORT` — sunt deja corecte pentru Docker Compose, nu le schimba):
+   - `backend/.env`: `SUPABASE_URL` (Project URL), `SUPABASE_ANON_KEY` (cheia "anon public"), `SUPABASE_SERVICE_ROLE_KEY` (cheia "service_role" — are acces complet la baza de date Supabase, fără RLS; e un secret, nu-l expune niciodată public).
+   - `frontend/.env`: `VITE_SUPABASE_URL` și `VITE_SUPABASE_ANON_KEY` — **exact aceleași valori** `SUPABASE_URL`/`SUPABASE_ANON_KEY` ca în `backend/.env` (același proiect Supabase, nu unul diferit). Cheia "anon public" e proiectată să fie expusă în client (protejată de RLS), nu e un secret ca `service_role`.
+   - `ROEID_CLIENT_ID`/`ROEID_CLIENT_SECRET` (backend) — opționale, lasă-le goale; fără acordul oficial cu ADR, autorizarea RoEID va fi respinsă oricum (client neînregistrat), dar restul aplicației funcționează normal.
+
+5. **Pornește aplicația**
+   ```bash
+   docker compose up --build
+   # backend:  http://localhost:4000
+   # frontend: http://localhost:5173
+   ```
+   Nu sunt necesare migrări manuale — la fiecare pornire, containerul de backend sincronizează automat schema Postgres (`prisma db push`) înainte de a porni serverul. Documentele generate/atașate se scriu într-un volum Docker persistent (`documents_storage`), deci rămân disponibile și după `docker compose down`/`up` (dispar doar la `docker compose down -v`).
+
+6. **Creează primul cont** — deschide http://localhost:5173, „Creează unul", înregistrează-te. Primul cont înregistrat în sistem devine automat Super Admin (acces la Utilizatori, Jurnal de audit, Securitate, Secrete); conturile ulterioare primesc rolul standard.
+
+7. **(Opțional) Activează funcțiile AI** — Chatbot-ul, NL2SQL-ul din BI și asistentul LMS au nevoie de o cheie [Groq](https://console.groq.com/keys) (gratuită). Se configurează **din aplicație**, nu într-un fișier `.env`: loghează-te ca admin → **Securitate → Secrete** → adaugă cheia cu numele `GROQ_API_KEY`. E stocată criptat în baza de date, prin secret manager-ul IAM.
 
 ## Stare curentă
 

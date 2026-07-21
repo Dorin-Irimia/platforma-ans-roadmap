@@ -25,4 +25,4 @@ Caietul de sarcini (Cap. 8) impune o demonstrație video obligatorie a 5 scenari
 
 - **[Roadmap_Demo_Scenarii.html](./Roadmap_Demo_Scenarii.html)** — roadmap vizual: cele 5 scenarii, arhitectură tehnică, structură repo, plan de sprint-uri (8 săptămâni), scalare spre roadmap-ul PM complet.
 - **[docs/04-scenariu-demonstrativ.md](./docs/04-scenariu-demonstrativ.md)** — extras complet al cerințelor de demonstrat, punct cu punct.
-- **[demo-app/](./demo-app/)** — scaffold-ul codului (Node.js + React + PostgreSQL), organizat pe module: `iam`, `dms`, `bi`, `chatbot`, `lms` — câte unul per scenariu.
+- **[demo-app/](./demo-app/)** — scaffold-ul codului (Node.js + React + PostgreSQL), organizat pe module: `iam`, `dms`, `bi`, `chatbot`, `lms` — câte unul per scenariu. Pentru instalare pe un dispozitiv nou (ce trebuie instalat, cum se configurează `.env`), vezi **[demo-app/README.md → Pornire pe un dispozitiv nou](./demo-app/README.md#pornire-pe-un-dispozitiv-nou)**.
