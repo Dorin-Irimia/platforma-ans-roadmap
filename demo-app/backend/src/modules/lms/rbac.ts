@@ -7,7 +7,9 @@ const PLATFORM_ADMIN_ROLES = ["SUPER_ADMIN", "ADMIN_INSTITUTIE"] as const;
 // Cine poate crea un curs nou — rolul global IAM Autor (sau administrare platformă).
 // Diferit de accesul de editare pe un curs anume (vezi hasCourseAccess), care e
 // scoped-per-curs prin LmsCourseCollaborator, nu global.
-export const requireCourseCreator = () => requireRole(...PLATFORM_ADMIN_ROLES, "AUTOR");
+// CNFPA (4.5.1 R18/R19, 4.5.8) primește drepturi de autor LMS — platforma CNFPA reală
+// e chiar acest modul LMS existent, nu unul separat.
+export const requireCourseCreator = () => requireRole(...PLATFORM_ADMIN_ROLES, "AUTOR", "CNFPA");
 
 export async function hasCourseAccess(courseId: string, user: { id: string; role: RoleName }): Promise<boolean> {
   if ((PLATFORM_ADMIN_ROLES as readonly string[]).includes(user.role)) return true;

@@ -16,6 +16,7 @@ import { sportsRegistryRouter } from "./modules/sports-registry";
 import { museumRouter } from "./modules/museum";
 import { yearbookModuleRouter } from "./modules/yearbook";
 import { nomenclatoareModuleRouter } from "./modules/nomenclatoare";
+import { portalRouter } from "./modules/portal";
 import { requestContextMiddleware } from "./shared/requestContext";
 import { prisma } from "./shared/prisma";
 
@@ -49,6 +50,7 @@ app.use("/api/yearbook", yearbookModuleRouter);
 // Sub /api/dms — rutele de legare la formular (/forms/:formId/nomenclator-links) trebuie
 // să coexiste cu restul rutelor de formulare deja montate acolo (dms/forms.routes.ts).
 app.use("/api/dms", nomenclatoareModuleRouter);
+app.use("/api/portal", portalRouter);
 
 app.use((req, res) => {
   res.status(404).json({ error: `Rută inexistentă: ${req.method} ${req.path}` });

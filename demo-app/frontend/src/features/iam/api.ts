@@ -84,6 +84,23 @@ export async function setUserRole(id: string, role: string) {
   return data;
 }
 
+// --- Legătură cont ↔ entitate de domeniu (4.5.1 R14-R16, conturi SPORTIV/CLUB/FEDERATIE) ---
+
+export interface LinkableEntity {
+  id: string;
+  label: string;
+}
+
+export async function fetchLinkableEntities(entityType: "ATHLETE" | "CLUB" | "FEDERATION"): Promise<LinkableEntity[]> {
+  const { data } = await api.get("/api/iam/users/linkable-entities", { params: { entityType } });
+  return data;
+}
+
+export async function linkUserEntity(userId: string, entityType: "ATHLETE" | "CLUB" | "FEDERATION", entityId: string | null) {
+  const { data } = await api.patch(`/api/iam/users/${userId}/link-entity`, { entityType, entityId });
+  return data;
+}
+
 // --- 2FA (TOTP prin Supabase MFA) ---
 
 export async function enroll2FA() {

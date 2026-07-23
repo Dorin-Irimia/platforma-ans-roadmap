@@ -121,6 +121,12 @@ function TicketsTab() {
           <p style={{ fontSize: 12, color: T.ink3, marginTop: -8, marginBottom: 12 }}>
             Un bilet necheck-in-uit la prea mult timp după interval e marcat automat „neprezentare" — locul se eliberează pentru rezervări noi.
           </p>
+          {/* Panou de activitate (4.5.1 R58) — rezumat rapid peste lista detaliată de mai jos. */}
+          <div style={{ display: "flex", gap: 20, marginBottom: 14 }}>
+            <div><div style={{ fontSize: 20, fontWeight: 800 }}>{todayVisits.length}</div><div style={{ fontSize: 11.5, color: T.ink3 }}>Bilete azi</div></div>
+            <div><div style={{ fontSize: 20, fontWeight: 800, color: T.success }}>{todayVisits.filter((v) => v.checkedInAt).length}</div><div style={{ fontSize: 11.5, color: T.ink3 }}>Check-in-uri</div></div>
+            <div><div style={{ fontSize: 20, fontWeight: 800, color: T.danger }}>{todayVisits.filter((v) => v.noShow).length}</div><div style={{ fontSize: 11.5, color: T.ink3 }}>Neprezentări</div></div>
+          </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {todayVisits.map((v) => (
               <div key={v.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13, padding: "6px 0", borderBottom: `1px solid ${T.line2}` }}>
@@ -143,6 +149,8 @@ function TicketsTab() {
 }
 
 function ArtifactsTab() {
+  const { user } = useAuth();
+  const isStaff = user && STAFF_ROLES.includes(user.role);
   const [artifacts, setArtifacts] = useState<MuseumArtifactDto[]>([]);
   const [showCreate, setShowCreate] = useState(false);
   const [draft, setDraft] = useState({ name: "", description: "", category: "", isFragile: false });
@@ -163,10 +171,12 @@ function ArtifactsTab() {
 
   return (
     <div>
-      <div style={{ marginBottom: 16 }}>
-        <Button onClick={() => setShowCreate((s) => !s)}>+ Artefact nou</Button>
-      </div>
-      {showCreate && (
+      {isStaff && (
+        <div style={{ marginBottom: 16 }}>
+          <Button onClick={() => setShowCreate((s) => !s)}>+ Artefact nou</Button>
+        </div>
+      )}
+      {isStaff && showCreate && (
         <Card style={{ marginBottom: 16 }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
             <div><FieldLabel>Nume</FieldLabel><input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} style={{ width: "100%" }} /></div>
@@ -193,9 +203,11 @@ function ArtifactsTab() {
             <div style={{ fontWeight: 700, fontSize: 13.5 }}>{a.name}</div>
             <div style={{ fontSize: 11.5, color: T.ink3, marginBottom: 8 }}>{a.category}</div>
             {a.isFragile && <Pill color={T.warn} bg={T.warnTint} style={{ marginBottom: 8 }}>Fragil</Pill>}
-            <div>
-              <Button variant="danger" style={{ fontSize: 11.5, padding: "5px 10px" }} onClick={() => deleteArtifact(a.id).then(load)}>Șterge</Button>
-            </div>
+            {isStaff && (
+              <div>
+                <Button variant="danger" style={{ fontSize: 11.5, padding: "5px 10px" }} onClick={() => deleteArtifact(a.id).then(load)}>Șterge</Button>
+              </div>
+            )}
           </Card>
         ))}
         {artifacts.length === 0 && <p style={{ color: T.ink3 }}>Niciun artefact adăugat încă.</p>}
@@ -205,14 +217,12 @@ function ArtifactsTab() {
 }
 
 export default function MuseumPage() {
-  const { user } = useAuth();
-  const isStaff = user && STAFF_ROLES.includes(user.role);
   const [tab, setTab] = useState<"bilete" | "artefacte">("bilete");
 
   return (
     <AppShell title="Galeria Marilor Sportivi" subtitle="Bilete online cu cod QR și catalogul artefactelor">
       <div style={{ display: "flex", gap: 8, marginBottom: 20, borderBottom: `1px solid ${T.line}` }}>
-        {[{ key: "bilete" as const, label: "Bilete" }, ...(isStaff ? [{ key: "artefacte" as const, label: "Artefacte" }] : [])].map((t) => (
+        {[{ key: "bilete" as const, label: "Bilete" }, { key: "artefacte" as const, label: "Artefacte" }].map((t) => (
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
@@ -223,7 +233,7 @@ export default function MuseumPage() {
         ))}
       </div>
       {tab === "bilete" && <TicketsTab />}
-      {tab === "artefacte" && isStaff && <ArtifactsTab />}
+      {tab === "artefacte" && <ArtifactsTab />}
     </AppShell>
   );
 }

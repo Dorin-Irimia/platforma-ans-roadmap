@@ -73,6 +73,12 @@ export const ROLE_COLORS: Record<string, { color: string; bg: string }> = {
   ADMIN_INSTITUTIE: { color: T.brandDark, bg: T.brandTint },
   MODERATOR: { color: T.warn, bg: T.warnTint },
   EVALUATOR: { color: T.success, bg: T.successTint },
+  // Roluri de stakeholder extern (Portal Public, 4.5.1) — culoare distinctă (info/albastru)
+  // ca să se vadă vizual că sunt conturi externe, nu personal ANS.
+  SPORTIV: { color: T.info, bg: T.infoTint },
+  FEDERATIE: { color: T.info, bg: T.infoTint },
+  CLUB: { color: T.info, bg: T.infoTint },
+  CNFPA: { color: T.info, bg: T.infoTint },
 };
 
 export function RolePill({ role }: { role: string }) {

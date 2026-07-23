@@ -8,8 +8,8 @@ import { T } from "../theme";
 import { useAuth } from "../features/iam/AuthContext";
 import { fetchCourses, createCourse, LmsCourseSummary } from "../features/lms/api";
 
-const CREATOR_ROLES = ["SUPER_ADMIN", "ADMIN_INSTITUTIE", "AUTOR"];
-const EDITOR_VIEW_ROLES = ["SUPER_ADMIN", "ADMIN_INSTITUTIE", "AUTOR", "CO_AUTOR", "EVALUATOR"];
+const CREATOR_ROLES = ["SUPER_ADMIN", "ADMIN_INSTITUTIE", "AUTOR", "CNFPA"];
+const EDITOR_VIEW_ROLES = ["SUPER_ADMIN", "ADMIN_INSTITUTIE", "AUTOR", "CO_AUTOR", "EVALUATOR", "CNFPA"];
 
 function CreateCourseModal({ onClose, onCreated }: { onClose: () => void; onCreated: (c: LmsCourseSummary) => void }) {
   const [title, setTitle] = useState("");

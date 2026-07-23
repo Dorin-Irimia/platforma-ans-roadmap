@@ -70,6 +70,7 @@ function emptyField(type: FieldType): FormFieldDef {
     readOnly: false,
     label: entry.label,
     allowAiAutofill: false,
+    autofillFromProfile: false,
     config: entry.defaultConfig ? { ...entry.defaultConfig } : undefined,
     conditions: [],
   };
@@ -83,6 +84,11 @@ function emptyForm(): FormPayload {
     templateType: "REQUEST_FORM",
     title: "",
     subtitle: "",
+    titleEn: "",
+    descriptionEn: "",
+    completeness: "COMPLETE",
+    requiresAuth: false,
+    portalSection: null,
     description: "",
     sections: [],
     otherFields: [],
@@ -314,6 +320,9 @@ function FieldEditor({
                 <input type="checkbox" checked={field.allowAiAutofill} onChange={(e) => onChange({ allowAiAutofill: e.target.checked })} /> Completare automată cu IA
               </label>
             )}
+            <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 13 }} title="Precompletare din profilul utilizatorului autentificat (4.5.1 R40) — mapează câmpul pe NUME/EMAIL în cardul de Mapare de mai jos.">
+              <input type="checkbox" checked={!!field.autofillFromProfile} onChange={(e) => onChange({ autofillFromProfile: e.target.checked })} /> Precompletare din profil
+            </label>
           </div>
 
           <SectionHeader title="Condiții de vizibilitate" />
@@ -567,6 +576,11 @@ export default function FormBuilderPage() {
       templateType: form.templateType,
       title: form.title,
       subtitle: form.subtitle,
+      titleEn: form.titleEn || "",
+      descriptionEn: form.descriptionEn || "",
+      completeness: form.completeness,
+      requiresAuth: form.requiresAuth,
+      portalSection: form.portalSection,
       sections: form.sections.map((s) => ({ ...s })),
       otherFields: form.fields,
     });
@@ -706,6 +720,48 @@ export default function FormBuilderPage() {
           <FieldLabel>Descriere</FieldLabel>
           <input value={editing.description || ""} onChange={(e) => setEditing({ ...editing, description: e.target.value })} style={{ width: "100%" }} />
         </Card>
+
+        {editing.templateType === "REQUEST_FORM" && (
+          <Card id="form-builder-portal-config-card" style={{ marginBottom: 20 }}>
+            <SectionHeader title="Configurare Portal" />
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14, marginBottom: 14 }}>
+              <div>
+                <FieldLabel>Secțiune catalog public</FieldLabel>
+                <select value={editing.portalSection || ""} onChange={(e) => setEditing({ ...editing, portalSection: (e.target.value || null) as any })} style={{ width: "100%" }}>
+                  <option value="">Fără secțiune</option>
+                  <option value="INFO">Informații</option>
+                  <option value="DOCUMENTE">Documente</option>
+                  <option value="PETITII">Petiții</option>
+                  <option value="AUDIENTE">Audiențe</option>
+                </select>
+              </div>
+              <div>
+                <FieldLabel>Tip serviciu electronic</FieldLabel>
+                <select value={editing.completeness || "COMPLETE"} onChange={(e) => setEditing({ ...editing, completeness: e.target.value as any })} style={{ width: "100%" }}>
+                  <option value="COMPLETE">Complet (integral online)</option>
+                  <option value="PARTIAL">Parțial (necesită și pas fizic)</option>
+                </select>
+              </div>
+              <div>
+                <FieldLabel>Acces</FieldLabel>
+                <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, marginTop: 8 }}>
+                  <input type="checkbox" checked={!!editing.requiresAuth} onChange={(e) => setEditing({ ...editing, requiresAuth: e.target.checked })} />
+                  Necesită autentificare (invizibil pentru vizitatori anonimi)
+                </label>
+              </div>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+              <div>
+                <FieldLabel>Titlu (EN, opțional)</FieldLabel>
+                <input value={editing.titleEn || ""} onChange={(e) => setEditing({ ...editing, titleEn: e.target.value })} style={{ width: "100%" }} />
+              </div>
+              <div>
+                <FieldLabel>Descriere (EN, opțional)</FieldLabel>
+                <input value={editing.descriptionEn || ""} onChange={(e) => setEditing({ ...editing, descriptionEn: e.target.value })} style={{ width: "100%" }} />
+              </div>
+            </div>
+          </Card>
+        )}
 
         <Card id="form-builder-mapping-card" style={{ marginBottom: 20 }}>
           <SectionHeader title="Mapare pe entitatea Cerere" />

@@ -73,6 +73,7 @@ const fieldSchema = z.object({
   maxValue: z.number().optional(),
   defaultValue: z.string().optional(),
   allowAiAutofill: z.boolean().optional().default(false),
+  autofillFromProfile: z.boolean().optional().default(false),
   config: z.record(z.any()).optional(),
   conditions: z.array(conditionSchema).optional(),
   order: z.number().optional().default(0),
@@ -93,6 +94,11 @@ const formSchema = z.object({
   templateType: z.enum(["REQUEST_FORM", "INTERNAL_DOCUMENT", "EXTERNAL_DOCUMENT"]).default("REQUEST_FORM"),
   title: z.string().optional(),
   subtitle: z.string().optional(),
+  titleEn: z.string().optional(),
+  descriptionEn: z.string().optional(),
+  completeness: z.enum(["COMPLETE", "PARTIAL"]).default("COMPLETE"),
+  requiresAuth: z.boolean().default(false),
+  portalSection: z.enum(["INFO", "DOCUMENTE", "PETITII", "AUDIENTE"]).nullable().optional(),
   sections: z.array(sectionSchema).default([]),
   otherFields: z.array(fieldSchema).default([]),
 });
@@ -105,6 +111,11 @@ const updateFormSchema = z.object({
   templateType: z.enum(["REQUEST_FORM", "INTERNAL_DOCUMENT", "EXTERNAL_DOCUMENT"]).optional(),
   title: z.string().optional(),
   subtitle: z.string().optional(),
+  titleEn: z.string().optional(),
+  descriptionEn: z.string().optional(),
+  completeness: z.enum(["COMPLETE", "PARTIAL"]).optional(),
+  requiresAuth: z.boolean().optional(),
+  portalSection: z.enum(["INFO", "DOCUMENTE", "PETITII", "AUDIENTE"]).nullable().optional(),
   sections: z.array(sectionSchema).optional(),
   otherFields: z.array(fieldSchema).optional(),
 });
@@ -128,6 +139,7 @@ function fieldCreateData(f: z.infer<typeof fieldSchema>, order: number) {
     maxValue: f.maxValue,
     defaultValue: f.defaultValue,
     allowAiAutofill: f.allowAiAutofill,
+    autofillFromProfile: f.autofillFromProfile,
     config: f.config,
     conditions: f.conditions,
     order: f.order ?? order,
@@ -145,11 +157,11 @@ const formInclude = {
 formsRouter.post("/forms", requireAuth, requireAdmin(), async (req: AuthedRequest, res) => {
   const parsed = formSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
-  const { icon, name, description, category, templateType, title, subtitle, sections, otherFields } = parsed.data;
+  const { icon, name, description, category, templateType, title, subtitle, titleEn, descriptionEn, completeness, requiresAuth, portalSection, sections, otherFields } = parsed.data;
 
   const form = await prisma.$transaction(async (tx) => {
     const created = await tx.form.create({
-      data: { icon, name, description, category, templateType, title, subtitle },
+      data: { icon, name, description, category, templateType, title, subtitle, titleEn, descriptionEn, completeness, requiresAuth, portalSection },
     });
 
     for (const [sIdx, s] of sections.entries()) {
@@ -223,11 +235,11 @@ formsRouter.get("/forms/:id/pdf", requireAuth, requireAdmin(), async (req, res) 
 formsRouter.patch("/forms/:id", requireAuth, requireAdmin(), async (req: AuthedRequest, res) => {
   const parsed = updateFormSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
-  const { icon, name, description, category, templateType, title, subtitle, sections, otherFields } = parsed.data;
+  const { icon, name, description, category, templateType, title, subtitle, titleEn, descriptionEn, completeness, requiresAuth, portalSection, sections, otherFields } = parsed.data;
 
   await prisma.form.update({
     where: { id: req.params.id },
-    data: { icon, name, description, category, templateType, title, subtitle },
+    data: { icon, name, description, category, templateType, title, subtitle, titleEn, descriptionEn, completeness, requiresAuth, portalSection },
   });
 
   if (sections || otherFields) {
@@ -275,9 +287,11 @@ formsRouter.post("/forms/:id/unpublish", requireAuth, requireAdmin(), async (req
 // 2) Portal — listă șabloane de tip "Formular cerere", publicate. Vizibile public,
 // fără autentificare (Scenariul 1, pct. 5) — diferențierea de comportament are loc la
 // depunere, unde un cont autentificat este legat automat de cerere.
-formsRouter.get("/portal/forms", optionalAuth, async (_req, res) => {
+formsRouter.get("/portal/forms", optionalAuth, async (req: AuthedRequest, res) => {
   const forms = await prisma.form.findMany({
-    where: { status: "PUBLISHED", templateType: "REQUEST_FORM" },
+    // Un formular marcat requiresAuth=true (4.5.1 R38) nu apare deloc pentru un vizitator
+    // neautentificat — nu doar fallback-ul nume+email, ci absența completă din catalog.
+    where: { status: "PUBLISHED", templateType: "REQUEST_FORM", ...(req.user ? {} : { requiresAuth: false }) },
     include: formInclude,
     orderBy: { name: "asc" },
   });
@@ -314,6 +328,7 @@ formsRouter.post("/portal/forms/:id/submit", optionalAuth, async (req: AuthedReq
 
   const form = await prisma.form.findUnique({ where: { id: req.params.id }, include: formInclude });
   if (!form || form.status !== "PUBLISHED") return res.status(404).json({ error: "Formular indisponibil" });
+  if (form.requiresAuth && !req.user) return res.status(401).json({ error: "Acest serviciu necesită autentificare" });
 
   const { submitterName, submitterEmail, data } = parsed.data;
   const allFields = [...form.sections.flatMap((s) => s.fields), ...form.fields];

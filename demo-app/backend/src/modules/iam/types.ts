@@ -5,4 +5,8 @@ export type RoleName =
   | "EVALUATOR"
   | "AUTOR"
   | "CO_AUTOR"
-  | "UTILIZATOR_STANDARD";
+  | "UTILIZATOR_STANDARD"
+  | "SPORTIV"
+  | "FEDERATIE"
+  | "CLUB"
+  | "CNFPA";

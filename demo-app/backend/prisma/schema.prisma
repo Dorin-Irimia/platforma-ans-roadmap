@@ -21,6 +21,13 @@ enum Role {
   AUTOR
   CO_AUTOR
   UTILIZATOR_STANDARD
+  // Roluri de stakeholder extern (Portal Public, 4.5.1) — create doar prin invitație admin
+  // (nu prin auto-înregistrare, care rămâne pe UTILIZATOR_STANDARD), legate opțional de o
+  // entitate de domeniu (Athlete/SportsClub/SportsFederation.userId) din /admin.
+  SPORTIV
+  FEDERATIE
+  CLUB
+  CNFPA
 }
 
 // `id` este mereu id-ul contului corespunzător din Supabase Auth (auth.users.id) —
@@ -60,6 +67,12 @@ model User {
   lmsCertificates     LmsCertificate[]
   yearbookEditions    SportsYearbookEdition[]
   emailOtpFactor      EmailOtpFactor?
+  // Legătură inversă opțională către entitatea de domeniu asociată unui cont de
+  // stakeholder (SPORTIV/CLUB/FEDERATIE) — vezi Athlete/SportsClub/SportsFederation.userId.
+  athleteProfile      Athlete?
+  clubProfile         SportsClub?
+  federationProfile   SportsFederation?
+  mediaAssets         MediaAsset[]
 }
 
 // Al doilea canal 2FA (pct. 4.4.2), paralel cu TOTP-ul delegat la Supabase Auth MFA —
@@ -197,6 +210,23 @@ enum FormTemplateType {
   REQUEST_FORM
   INTERNAL_DOCUMENT
   EXTERNAL_DOCUMENT
+}
+
+// Clasificare "Serviciu Electronic Complet vs. Parțial" (4.5.1 R35) — Complet = flux
+// integral online (depunere→răspuns), Parțial = necesită și un pas fizic (ex. ridicare
+// document la ghișeu). Doar etichetă informativă pe catalogul public, nu schimbă fluxul.
+enum ServiceCompleteness {
+  COMPLETE
+  PARTIAL
+}
+
+// Secțiune de catalog pe Portal (4.5.1 R37) — grupează formularele publicate în cele
+// 4 categorii cerute explicit, în loc de o listă plată nediferențiată.
+enum PortalSection {
+  INFO
+  DOCUMENTE
+  PETITII
+  AUDIENTE
 }
 
 // Bibliotecă extinsă de tipuri de câmpuri, organizată pe categorii (Sistem, General,
@@ -579,7 +609,20 @@ model Form {
   templateType FormTemplateType @default(REQUEST_FORM)
   title        String? // titlu afișat în document/formular (distinct de `name`, care e denumirea internă)
   subtitle     String?
+  // Traduceri opționale EN pentru catalogul public (4.5.1 R97) — vezi nota de scop din
+  // README despre selectorul de limbă RO/EN (limitat la conținutul public nou, nu la
+  // toată interfața existentă).
+  titleEn       String?
+  descriptionEn String?
   status       FormStatus       @default(DRAFT)
+  // Serviciu Electronic Complet vs. Parțial (4.5.1 R35) — etichetă informativă pe catalog.
+  completeness ServiceCompleteness @default(COMPLETE)
+  // Dacă true, formularul nu apare deloc pe /portal pentru un vizitator neautentificat
+  // (4.5.1 R38) — în loc de fallback-ul implicit nume+email.
+  requiresAuth Boolean          @default(false)
+  // Secțiunea de catalog public (4.5.1 R37) — null pentru șabloanele care nu sunt
+  // formulare publice (INTERNAL_DOCUMENT/EXTERNAL_DOCUMENT).
+  portalSection PortalSection?
   createdAt    DateTime         @default(now())
   updatedAt    DateTime         @updatedAt
 
@@ -627,6 +670,9 @@ model FormField {
   maxValue        Float?
   defaultValue    String?
   allowAiAutofill Boolean      @default(false)
+  // Control fin, per câmp, dacă precompletarea din profilul utilizatorului autentificat
+  // e activă (4.5.1 R40) — distinct de `allowAiAutofill` (autocompletare AI).
+  autofillFromProfile Boolean  @default(false)
   config          Json? // setări specifice tipului (opțiuni listă, registru, scală etc. — vezi FIELD_CATALOG frontend)
   conditions      Json? // array [{ field, operator, value }] — toate condițiile trebuie satisfăcute
   order           Int          @default(0)
@@ -1221,6 +1267,9 @@ model SportsFederation {
   county         String? // doar pt. COUNTY_ASSOCIATION — max o asociație/ramură/județ, validat la nivel de rută
   cif            String?
   address        String?
+  // Legătură opțională la un cont IAM cu rol FEDERATIE (4.5.1 R15) — asociată din /admin.
+  userId         String?         @unique
+  user           User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
   status         SportsOrgStatus @default(ACTIVE)
   foundedAt      DateTime?
   createdAt      DateTime        @default(now())
@@ -1254,6 +1303,9 @@ model SportsClub {
   address      String?
   county       String? // necesar pt. clasamentele pe județe din Anuarul Sportului (4.5.6)
   cif          String?
+  // Legătură opțională la un cont IAM cu rol CLUB (4.5.1 R16) — asociată din /admin.
+  userId       String?         @unique
+  user         User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
   status       SportsOrgStatus @default(ACTIVE)
   duesUpToDate Boolean         @default(true) // blochează accesul/participarea la neplată
   // Setat quando duesUpToDate trece pe false; golit la loc-plată. Permite regulii automate
@@ -1330,7 +1382,10 @@ model Athlete {
   birthDate            DateTime?
   clubId               String?
   club                 SportsClub?   @relation(fields: [clubId], references: [id])
-  userId               String? // legătură opțională la un cont IAM ("cont public sportiv")
+  // Legătură opțională la un cont IAM cu rol SPORTIV ("cont public sportiv", 4.5.1 R14) —
+  // asociată explicit din /admin, nu automat. @unique = un cont are cel mult un profil sportiv.
+  userId               String?       @unique
+  user                 User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
   medicalVisaExpiresAt DateTime?
   status               AthleteStatus @default(ACTIVE)
   gdprErasedAt         DateTime? // dacă setat, cnp/nume sunt deja anonimizate (nu ștergere fizică)
@@ -1561,4 +1616,56 @@ model ArchiveFolder {
   updatedAt   DateTime           @updatedAt
 
   documents Document[]
+}
+
+// ============================================================
+// Modul Portal Public — extensii (4.5.1): bibliotecă media/SPV, CMS pagini publice,
+// șabloane email cu variabile. Completări pentru matricea de corespondență — acoperă
+// cerințele care nu aveau încă niciun ecran în demo (R46/R98, R59-62, R88-89).
+// ============================================================
+
+// Fișier reutilizabil — `isPersonal=true` apare doar în SPV-ul propriu al celui care l-a
+// încărcat (document justificativ reutilizabil, R46); `isPersonal=false` apare în
+// biblioteca media generală (R98), folosibilă ex. ca sursă pentru bannere CMS.
+model MediaAsset {
+  id           String   @id @default(uuid())
+  filename     String
+  mimeType     String
+  sizeBytes    Int
+  storagePath  String
+  isPersonal   Boolean  @default(true)
+  uploadedById String
+  uploadedBy   User     @relation(fields: [uploadedById], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now())
+
+  @@index([uploadedById])
+}
+
+// Pagină publică administrabilă (Termeni și condiții, Politică de confidențialitate,
+// Contact, bannere) — R59-62. `bodyHtml` e scris cu editorul TipTap (aceeași convenție
+// de stocare/sanitizare ca la blocurile TEXT din LMS, vezi lms/README.md).
+model CmsPage {
+  id          String   @id @default(uuid())
+  slug        String   @unique
+  title       String
+  bodyHtml    String
+  titleEn     String?
+  bodyHtmlEn  String?
+  isPublished Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// Șablon de email cu variabile {{VAR}} pentru notificările Portalului (R88-89) — același
+// tipar de substituție ca `ResponseTemplate`/`ChatDocumentTemplate`. Trimiterea rămâne
+// simulată (doar logată în audit, ca la `ActionType.SEND_EMAIL` existent) — acest model
+// acoperă doar editarea/previzualizarea centralizată a conținutului șablonului.
+model NotificationEmailTemplate {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  subject   String
+  bodyHtml  String
+  variables String[] @default([])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }

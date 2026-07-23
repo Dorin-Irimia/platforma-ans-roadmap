@@ -23,6 +23,9 @@ export interface FormFieldDef {
   maxValue?: number;
   defaultValue?: string;
   allowAiAutofill: boolean;
+  // Precompletare din profilul utilizatorului autentificat (4.5.1 R40) — distinct de
+  // autocompletarea AI de mai sus.
+  autofillFromProfile?: boolean;
   config?: Record<string, unknown>;
   conditions?: ConditionRule[];
   order?: number;
@@ -36,6 +39,9 @@ export interface FormSectionDef {
   fields: FormFieldDef[];
 }
 
+export type ServiceCompleteness = "COMPLETE" | "PARTIAL";
+export type PortalSection = "INFO" | "DOCUMENTE" | "PETITII" | "AUDIENTE";
+
 export interface FormDef {
   id: string;
   icon: string;
@@ -45,7 +51,15 @@ export interface FormDef {
   templateType: TemplateType;
   title?: string;
   subtitle?: string;
+  titleEn?: string | null;
+  descriptionEn?: string | null;
   status: "DRAFT" | "PUBLISHED";
+  // Serviciu Electronic Complet vs. Parțial (4.5.1 R35).
+  completeness: ServiceCompleteness;
+  // Dacă true, formularul nu apare pe /portal pentru un vizitator neautentificat (R38).
+  requiresAuth: boolean;
+  // Secțiunea de catalog public (4.5.1 R37) — null pentru șabloanele non-publice.
+  portalSection?: PortalSection | null;
   sections: FormSectionDef[];
   fields: FormFieldDef[]; // "Alte cerințe" — fără secțiune
   createdAt: string;
@@ -59,6 +73,11 @@ export interface FormPayload {
   templateType: TemplateType;
   title?: string;
   subtitle?: string;
+  titleEn?: string;
+  descriptionEn?: string;
+  completeness?: ServiceCompleteness;
+  requiresAuth?: boolean;
+  portalSection?: PortalSection | null;
   sections: FormSectionDef[];
   otherFields: FormFieldDef[];
 }

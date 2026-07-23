@@ -20,6 +20,9 @@ import {
   Archive,
   BookOpen,
   ListTree,
+  UserCircle,
+  Image,
+  FileEdit,
 } from "lucide-react";
 import { useAuth } from "../features/iam/AuthContext";
 import { T, FONT } from "../theme";
@@ -37,18 +40,23 @@ interface NavItem {
 
 const STAFF_ROLES = ["SUPER_ADMIN", "ADMIN_INSTITUTIE", "MODERATOR", "EVALUATOR", "AUTOR", "CO_AUTOR"];
 const ADMIN_ROLES = ["SUPER_ADMIN", "ADMIN_INSTITUTIE"];
+// Roluri de stakeholder extern (Portal Public, 4.5.1) — conturi SPORTIV/FEDERATIE/CLUB/CNFPA.
+const STAKEHOLDER_ROLES = ["SPORTIV", "FEDERATIE", "CLUB", "CNFPA"];
 
 const NAV_ITEMS: NavItem[] = [
   { to: "/", label: "Panou principal", icon: LayoutDashboard },
   { to: "/chatbot", label: "Chatbot", icon: MessageCircle },
   { to: "/lms", label: "Cursuri", icon: GraduationCap },
   { to: "/portal", label: "Portal servicii", icon: Globe },
+  { to: "/contul-meu", label: "Contul meu", icon: UserCircle, roles: STAKEHOLDER_ROLES },
   { to: "/registratura", label: "Registratură", icon: Inbox, roles: STAFF_ROLES },
   { to: "/registru-sportiv", label: "Registru Sportiv", icon: Trophy, roles: STAFF_ROLES },
   { to: "/anuarul-sportului", label: "Anuarul Sportului", icon: BookOpen },
   { to: "/muzeu", label: "Muzeu", icon: Landmark },
   { to: "/arhiva", label: "Arhivă", icon: Archive, roles: STAFF_ROLES },
   { to: "/form-builder", label: "Editor șabloane", icon: ClipboardList, roles: ADMIN_ROLES },
+  { to: "/cms", label: "Pagini publice", icon: FileEdit, roles: ADMIN_ROLES },
+  { to: "/biblioteca-media", label: "Bibliotecă media", icon: Image, roles: STAFF_ROLES },
   { to: "/nomenclatoare", label: "Nomenclatoare", icon: ListTree, roles: ADMIN_ROLES },
   { to: "/workflow-admin", label: "Configurare flux", icon: GitBranch, roles: ADMIN_ROLES },
   { to: "/bi", label: "Business Intelligence", icon: BarChart3, roles: STAFF_ROLES },

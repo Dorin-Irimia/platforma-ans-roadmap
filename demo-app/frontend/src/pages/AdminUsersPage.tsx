@@ -14,8 +14,11 @@ import {
   fetchAuthPolicy,
   updateAuthPolicy,
   rejectExpiredPending,
+  fetchLinkableEntities,
+  linkUserEntity,
   GroupRow,
   AuthPolicy,
+  LinkableEntity,
 } from "../features/iam/api";
 import { AppShell } from "../components/AppShell";
 import { Card, SectionHeader, Pill, Button, FieldLabel, ROLE_COLORS } from "../components/ui";
@@ -29,6 +32,53 @@ interface UserRow {
   isActive: boolean;
   pendingApprovalSince?: string | null;
   pendingTooLong?: boolean;
+  linkedEntity?: { entityType: "ATHLETE" | "CLUB" | "FEDERATION"; id: string; label: string } | null;
+}
+
+const ROLE_TO_ENTITY_TYPE: Record<string, "ATHLETE" | "CLUB" | "FEDERATION"> = {
+  SPORTIV: "ATHLETE",
+  CLUB: "CLUB",
+  FEDERATIE: "FEDERATION",
+};
+
+// Select "Entitate asociată" (4.5.1 R14-R16) — vizibil doar pentru conturi SPORTIV/CLUB/
+// FEDERATIE, leagă contul de un sportiv/club/federație existent (fără duplicat de entitate).
+function EntityLinkSelect({ user, onLinked }: { user: UserRow; onLinked: (linkedEntity: UserRow["linkedEntity"]) => void }) {
+  const entityType = ROLE_TO_ENTITY_TYPE[user.role];
+  const [options, setOptions] = useState<LinkableEntity[]>([]);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    fetchLinkableEntities(entityType).then(setOptions).catch(() => setOptions([]));
+  }, [entityType]);
+
+  async function handleChange(entityId: string) {
+    setSaving(true);
+    try {
+      await linkUserEntity(user.id, entityType, entityId || null);
+      const picked = options.find((o) => o.id === entityId);
+      onLinked(entityId ? { entityType, id: entityId, label: picked?.label || "" } : null);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <select
+      value={user.linkedEntity?.id || ""}
+      onChange={(e) => handleChange(e.target.value)}
+      disabled={saving}
+      style={{ fontSize: 12, padding: "5px 8px" }}
+    >
+      <option value="">— nelegat —</option>
+      {user.linkedEntity && !options.some((o) => o.id === user.linkedEntity!.id) && (
+        <option value={user.linkedEntity.id}>{user.linkedEntity.label}</option>
+      )}
+      {options.map((o) => (
+        <option key={o.id} value={o.id}>{o.label}</option>
+      ))}
+    </select>
+  );
 }
 
 const ROLES = [
@@ -39,7 +89,15 @@ const ROLES = [
   "AUTOR",
   "CO_AUTOR",
   "UTILIZATOR_STANDARD",
+  "SPORTIV",
+  "FEDERATIE",
+  "CLUB",
+  "CNFPA",
 ];
+
+// Roluri de stakeholder ale căror conturi pot fi asociate unei entități de domeniu
+// (Athlete/SportsClub/SportsFederation) — vezi coloana "Entitate asociată" mai jos.
+const LINKABLE_ROLES = ["SPORTIV", "FEDERATIE", "CLUB"];
 
 // Select nativ restilizat ca pastilă colorată (după rol) — păstrează schimbarea
 // instantă de rol (onChange), doar arată ca RolePill în loc de un dropdown simplu.
@@ -237,6 +295,7 @@ export default function AdminUsersPage() {
               <th style={{ paddingLeft: 20 }}>Email</th>
               <th>Nume</th>
               <th>Rol</th>
+              <th>Entitate asociată</th>
               <th>Status</th>
               <th style={{ paddingRight: 20 }}></th>
             </tr>
@@ -248,6 +307,16 @@ export default function AdminUsersPage() {
                 <td>{u.name || "—"}</td>
                 <td>
                   <RoleSelect id={uIdx === 0 ? "admin-role-select" : undefined} value={u.role} onChange={(role) => changeRole(u, role)} />
+                </td>
+                <td>
+                  {LINKABLE_ROLES.includes(u.role) ? (
+                    <EntityLinkSelect
+                      user={u}
+                      onLinked={(linkedEntity) => setUsers((prev) => prev.map((row) => (row.id === u.id ? { ...row, linkedEntity } : row)))}
+                    />
+                  ) : (
+                    <span style={{ color: T.ink4, fontSize: 12 }}>—</span>
+                  )}
                 </td>
                 <td>
                   <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>

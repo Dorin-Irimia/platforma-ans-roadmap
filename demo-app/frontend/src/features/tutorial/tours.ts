@@ -32,7 +32,7 @@ export interface Tour {
 const STAFF_ROLES = ["SUPER_ADMIN", "ADMIN_INSTITUTIE", "MODERATOR", "EVALUATOR", "AUTOR", "CO_AUTOR"];
 const ADMIN_ROLES = ["SUPER_ADMIN", "ADMIN_INSTITUTIE"];
 // Aceleași roluri ca CREATOR_ROLES din LmsCoursesPage.tsx — cine poate crea efectiv un curs.
-const LMS_CREATOR_ROLES = ["SUPER_ADMIN", "ADMIN_INSTITUTIE", "AUTOR"];
+const LMS_CREATOR_ROLES = ["SUPER_ADMIN", "ADMIN_INSTITUTIE", "AUTOR", "CNFPA"];
 
 // Id DOM stabil pentru linkul din sidebar corespunzător unei rute — folosit atât la
 // randarea sidebar-ului (`AppShell.tsx`) cât și la pasul sintetic de navigare de mai jos,

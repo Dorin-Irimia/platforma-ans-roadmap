@@ -27,9 +27,15 @@ import MuseumPage from "./pages/MuseumPage";
 import ArchivePage from "./pages/ArchivePage";
 import YearbookPage from "./pages/YearbookPage";
 import NomenclatoarePage from "./pages/NomenclatoarePage";
+import MyAccountPage from "./pages/MyAccountPage";
+import MediaLibraryPage from "./pages/MediaLibraryPage";
+import CmsAdminPage from "./pages/CmsAdminPage";
+import CmsPublicPage from "./pages/CmsPublicPage";
 
 const STAFF_ROLES = ["SUPER_ADMIN", "ADMIN_INSTITUTIE", "MODERATOR", "EVALUATOR", "AUTOR", "CO_AUTOR"];
 const ADMIN_ROLES = ["SUPER_ADMIN", "ADMIN_INSTITUTIE"];
+// Roluri de stakeholder extern (Portal Public, 4.5.1) — conturi SPORTIV/FEDERATIE/CLUB/CNFPA.
+const STAKEHOLDER_ROLES = ["SPORTIV", "FEDERATIE", "CLUB", "CNFPA"];
 
 export default function App() {
   return (
@@ -187,6 +193,33 @@ export default function App() {
               </ProtectedRoute>
             }
           />
+          <Route
+            path="/contul-meu"
+            element={
+              <ProtectedRoute roles={STAKEHOLDER_ROLES}>
+                <MyAccountPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/biblioteca-media"
+            element={
+              <ProtectedRoute roles={STAFF_ROLES}>
+                <MediaLibraryPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/cms"
+            element={
+              <ProtectedRoute roles={ADMIN_ROLES}>
+                <CmsAdminPage />
+              </ProtectedRoute>
+            }
+          />
+          {/* Pagini publice CMS (Termeni/Confidențialitate/Contact etc.) — fără autentificare,
+              ca la Portal/Muzeu/Anuarul Sportului. */}
+          <Route path="/pagini/:slug" element={<CmsPublicPage />} />
         </Routes>
         <TutorialOverlay />
         </TutorialProvider>

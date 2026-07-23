@@ -16,6 +16,9 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 4 *
 const WIDGET_TYPES = ["RECENT_REQUESTS", "ACCOUNT_SUMMARY", "CHART", "SAVED_REPORT", "LINK_BUTTON", "CUSTOM_BUTTON", "STATS", "ACTIVITY_LOG", "AUTOMATION_SUMMARY"] as const;
 
 const STAFF_ROLES = ["SUPER_ADMIN", "ADMIN_INSTITUTIE", "MODERATOR", "EVALUATOR", "AUTOR", "CO_AUTOR"];
+// Roluri de stakeholder extern (Portal Public, 4.5.1) — conturi SPORTIV/FEDERATIE/CLUB/CNFPA,
+// distincte de UTILIZATOR_STANDARD (cetățean generic fără entitate de domeniu asociată).
+const STAKEHOLDER_ROLES = ["SPORTIV", "FEDERATIE", "CLUB", "CNFPA"];
 
 // Panoul principal e complet configurabil — niciun conținut static — dar un cont nou nu
 // trebuie să vadă o pagină goală, deci la prima vizită (0 widget-uri) se creează automat
@@ -23,6 +26,7 @@ const STAFF_ROLES = ["SUPER_ADMIN", "ADMIN_INSTITUTIE", "MODERATOR", "EVALUATOR"
 // mute/redimensioneze/șteargă imediat după — sunt widget-uri normale, nu ceva special.
 async function seedDefaultWidgets(userId: string, role: string) {
   const isStaff = STAFF_ROLES.includes(role);
+  const isStakeholder = STAKEHOLDER_ROLES.includes(role);
   const defaults = isStaff
     ? [
         { type: "STATS" as const, x: 0, y: 0, w: 12, h: 3 },
@@ -32,6 +36,12 @@ async function seedDefaultWidgets(userId: string, role: string) {
         { type: "LINK_BUTTON" as const, title: "Editor șabloane", config: { url: "/form-builder", icon: "document" }, x: 3, y: 9, w: 3, h: 2 },
         { type: "LINK_BUTTON" as const, title: "Business Intelligence", config: { url: "/bi", icon: "globe" }, x: 6, y: 9, w: 3, h: 2 },
         { type: "LINK_BUTTON" as const, title: "Utilizatori", config: { url: "/admin", icon: "institution" }, x: 9, y: 9, w: 3, h: 2 },
+      ]
+    : isStakeholder
+    ? [
+        { type: "ACCOUNT_SUMMARY" as const, x: 0, y: 0, w: 4, h: 5 },
+        { type: "LINK_BUTTON" as const, title: "Contul meu", config: { url: "/contul-meu", icon: "document" }, x: 4, y: 0, w: 4, h: 2 },
+        ...(role === "CNFPA" ? [{ type: "LINK_BUTTON" as const, title: "Cursuri CNFPA", config: { url: "/lms", icon: "globe" }, x: 8, y: 0, w: 4, h: 2 }] : []),
       ]
     : [
         { type: "ACCOUNT_SUMMARY" as const, x: 0, y: 0, w: 4, h: 5 },

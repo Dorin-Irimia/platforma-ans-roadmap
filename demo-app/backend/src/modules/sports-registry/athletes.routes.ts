@@ -3,7 +3,7 @@ import multer from "multer";
 import { z } from "zod";
 import { prisma } from "../../shared/prisma";
 import { requireAuth, AuthedRequest } from "../iam/rbac.middleware";
-import { requireStaff } from "../dms/rbac";
+import { requireStaff, STAFF_ROLES } from "../dms/rbac";
 import { logAction } from "../iam/audit.service";
 import { createInternalRequest } from "./internalRequest";
 
@@ -132,9 +132,15 @@ const transferSchema = z.object({
   transferType: z.enum(["PERMANENT", "TEMPORARY"]),
 });
 
-athletesRouter.post("/athletes/:id/transfer-request", requireAuth, requireStaff(), async (req: AuthedRequest, res) => {
+// Deschis fie personalului ANS (pentru orice sportiv), fie sportivului însuși din
+// contul propriu (4.5.1 R14 — "cont Sportiv: inițiere transfer"), verificat prin
+// Athlete.userId — nu doar `requireStaff()`, ca la restul rutelor acestui fișier.
+athletesRouter.post("/athletes/:id/transfer-request", requireAuth, async (req: AuthedRequest, res) => {
   const athlete = await prisma.athlete.findUnique({ where: { id: req.params.id } });
   if (!athlete) return res.status(404).json({ error: "Sportiv inexistent" });
+  const isStaff = (STAFF_ROLES as readonly string[]).includes(req.user!.role);
+  const isOwnProfile = athlete.userId === req.user!.id;
+  if (!isStaff && !isOwnProfile) return res.status(403).json({ error: "Acces interzis" });
   const parsed = transferSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 

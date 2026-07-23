@@ -38,6 +38,10 @@ const ROLE_VALUES = [
   "AUTOR",
   "CO_AUTOR",
   "UTILIZATOR_STANDARD",
+  "SPORTIV",
+  "FEDERATIE",
+  "CLUB",
+  "CNFPA",
 ] as const;
 
 const registerSchema = z.object({
@@ -339,16 +343,29 @@ iamRouter.get(
   async (_req, res) => {
     const policy = await getAuthPolicy();
     const users = await prisma.user.findMany({
-      select: { id: true, email: true, name: true, role: true, isActive: true, createdAt: true, pendingApprovalSince: true },
+      select: {
+        id: true, email: true, name: true, role: true, isActive: true, createdAt: true, pendingApprovalSince: true,
+        athleteProfile: { select: { id: true, firstName: true, lastName: true } },
+        clubProfile: { select: { id: true, name: true } },
+        federationProfile: { select: { id: true, name: true } },
+      },
       orderBy: { createdAt: "desc" },
     });
     const expiryMs = policy.pendingApprovalExpiryDays * 86_400_000;
     res.json(
-      users.map((u) => ({
+      users.map(({ athleteProfile, clubProfile, federationProfile, ...u }) => ({
         ...u,
         // Regulă automată (evaluată leneș, la fiecare listare): un cont încă neaprobat
         // după atâtea zile e semnalat, cu opțiunea de respingere în bloc mai jos.
         pendingTooLong: !!u.pendingApprovalSince && Date.now() - u.pendingApprovalSince.getTime() > expiryMs,
+        // Entitate de domeniu asociată (4.5.1 R14-R16) — cel mult una dintre cele 3.
+        linkedEntity: athleteProfile
+          ? { entityType: "ATHLETE" as const, id: athleteProfile.id, label: `${athleteProfile.firstName} ${athleteProfile.lastName}` }
+          : clubProfile
+          ? { entityType: "CLUB" as const, id: clubProfile.id, label: clubProfile.name }
+          : federationProfile
+          ? { entityType: "FEDERATION" as const, id: federationProfile.id, label: federationProfile.name }
+          : null,
       }))
     );
   }
@@ -460,6 +477,70 @@ iamRouter.patch(
       metadata: { oldRole: before?.role, newRole: updated.role },
     });
     res.json({ id: updated.id, role: updated.role });
+  }
+);
+
+// Legătură cont IAM ↔ entitate de domeniu (4.5.1 R14-R16) — un cont SPORTIV/CLUB/FEDERATIE
+// devine "contul propriu" al unui sportiv/club/federație existent, folosit apoi de
+// portal/me.routes.ts pentru a scopa datele afișate în /contul-meu la entitatea legată.
+const ENTITY_MODELS = {
+  ATHLETE: "athlete",
+  CLUB: "sportsClub",
+  FEDERATION: "sportsFederation",
+} as const;
+type LinkableEntityType = keyof typeof ENTITY_MODELS;
+
+const linkEntitySchema = z.object({
+  entityType: z.enum(["ATHLETE", "CLUB", "FEDERATION"]),
+  entityId: z.string().nullable(),
+});
+
+iamRouter.get(
+  "/users/linkable-entities",
+  requireAuth,
+  requireRole("SUPER_ADMIN", "ADMIN_INSTITUTIE"),
+  async (req, res) => {
+    const entityType = req.query.entityType as LinkableEntityType | undefined;
+    if (!entityType || !(entityType in ENTITY_MODELS)) return res.status(400).json({ error: "entityType invalid" });
+    if (entityType === "ATHLETE") {
+      const rows = await prisma.athlete.findMany({ where: { userId: null }, select: { id: true, firstName: true, lastName: true, cnp: true }, orderBy: { lastName: "asc" } });
+      return res.json(rows.map((r) => ({ id: r.id, label: `${r.firstName} ${r.lastName} (${r.cnp})` })));
+    }
+    if (entityType === "CLUB") {
+      const rows = await prisma.sportsClub.findMany({ where: { userId: null }, select: { id: true, name: true }, orderBy: { name: "asc" } });
+      return res.json(rows.map((r) => ({ id: r.id, label: r.name })));
+    }
+    const rows = await prisma.sportsFederation.findMany({ where: { userId: null }, select: { id: true, name: true }, orderBy: { name: "asc" } });
+    res.json(rows.map((r) => ({ id: r.id, label: r.name })));
+  }
+);
+
+iamRouter.patch(
+  "/users/:id/link-entity",
+  requireAuth,
+  requireRole("SUPER_ADMIN", "ADMIN_INSTITUTIE"),
+  async (req: AuthedRequest, res) => {
+    const parsed = linkEntitySchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+    const { entityType, entityId } = parsed.data;
+    const modelName = ENTITY_MODELS[entityType];
+    const delegate = (prisma as any)[modelName];
+
+    // Curățăm orice legătură anterioară a acestui cont pe cele 3 tipuri de entități —
+    // un cont are cel mult o entitate asociată, indiferent de tipul ei.
+    await Promise.all(
+      Object.values(ENTITY_MODELS).map((m) => (prisma as any)[m].updateMany({ where: { userId: req.params.id }, data: { userId: null } }))
+    );
+
+    if (entityId) {
+      const target = await delegate.findUnique({ where: { id: entityId } });
+      if (!target) return res.status(404).json({ error: "Entitate inexistentă" });
+      if (target.userId && target.userId !== req.params.id) return res.status(409).json({ error: "Entitatea este deja asociată altui cont" });
+      await delegate.update({ where: { id: entityId }, data: { userId: req.params.id } });
+    }
+
+    await logAction({ userId: req.user!.id, action: "USER_ENTITY_LINKED", resource: `user:${req.params.id}`, metadata: { entityType, entityId } });
+    res.json({ id: req.params.id, entityType, entityId });
   }
 );
 

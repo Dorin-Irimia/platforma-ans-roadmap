@@ -15,7 +15,19 @@ import {
   FormFieldDef,
   MyRequestSummary,
   MyRequestDetail,
+  PortalSection,
 } from "../features/dms/api";
+
+// Grupare catalog public pe cele 4 secțiuni cerute explicit (4.5.1 R37) — `null`
+// (formulare vechi, fără secțiune asignată) cade în categoria implicită "Altele".
+const PORTAL_SECTION_ORDER: (PortalSection | null)[] = ["INFO", "DOCUMENTE", "PETITII", "AUDIENTE", null];
+const PORTAL_SECTION_LABELS: Record<string, string> = {
+  INFO: "Informații",
+  DOCUMENTE: "Documente",
+  PETITII: "Petiții",
+  AUDIENTE: "Audiențe",
+  ALTELE: "Alte servicii",
+};
 import { FIELD_CATALOG } from "../features/dms/fieldCatalog";
 import { fetchFormNomenclatorLinks, FormNomenclatorLinkDto } from "../features/nomenclatoare/api";
 
@@ -234,6 +246,20 @@ function SubmissionForm({ form, onDone }: { form: FormDef; onDone: (registryNumb
   useEffect(() => {
     fetchFormNomenclatorLinks(form.id).then(setNomenclatorLinks).catch(() => setNomenclatorLinks([]));
   }, [form.id]);
+
+  // Precompletare din profil (4.5.1 R40) — doar câmpurile marcate explicit
+  // `autofillFromProfile`, mapate pe NUME/EMAIL prin `canonicalRole` (deja existent).
+  useEffect(() => {
+    if (!user) return;
+    const allFields = [...form.sections.flatMap((s) => s.fields), ...form.fields];
+    const patch: Record<string, unknown> = {};
+    for (const f of allFields) {
+      if (!f.autofillFromProfile) continue;
+      if (f.canonicalRole === "NUME" && user.name) patch[f.key] = user.name;
+      if (f.canonicalRole === "EMAIL") patch[f.key] = user.email;
+    }
+    if (Object.keys(patch).length) setValues((prev) => ({ ...patch, ...prev }));
+  }, [form, user]);
 
   // La alegerea unei intrări dintr-un nomenclator atașat, precompletăm dintr-o dată
   // toate câmpurile mapate (cerință explicită) — nu doar unul singur.
@@ -522,26 +548,50 @@ export default function PortalPage() {
       </div>
 
       {tab === "forms" ? (
-        <div style={{ display: "grid", gap: 12 }}>
-          {forms.map((f, fIdx) => (
-            <Card key={f.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }} >
-              <div onClick={() => setSelected(f)} style={{ flex: 1, display: "flex", alignItems: "center", gap: 14 }}>
-                <div style={{ width: 44, height: 44, borderRadius: 12, background: T.brandTint, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, color: T.brand }}>
-                  <FileText size={20} />
+        <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+          {PORTAL_SECTION_ORDER.map((sectionKey) => {
+            const sectionForms = forms.filter((f) => (f.portalSection || null) === sectionKey);
+            if (sectionForms.length === 0) return null;
+            return (
+              <div key={sectionKey || "altele"}>
+                <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase", color: T.ink3, marginBottom: 10 }}>
+                  {PORTAL_SECTION_LABELS[sectionKey || "ALTELE"]}
                 </div>
-                <div>
-                  <div style={{ fontWeight: 700 }}>{f.name}</div>
-                  {f.description && <div style={{ fontSize: 13, color: T.ink3, marginTop: 2 }}>{f.description}</div>}
+                <div style={{ display: "grid", gap: 12 }}>
+                  {sectionForms.map((f, fIdx) => (
+                    <Card key={f.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }} >
+                      <div onClick={() => setSelected(f)} style={{ flex: 1, display: "flex", alignItems: "center", gap: 14 }}>
+                        <div style={{ width: 44, height: 44, borderRadius: 12, background: T.brandTint, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, color: T.brand }}>
+                          <FileText size={20} />
+                        </div>
+                        <div>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <div style={{ fontWeight: 700 }}>{f.name}</div>
+                            <Pill color={f.completeness === "COMPLETE" ? T.success : T.warn} bg={f.completeness === "COMPLETE" ? T.successTint : T.warnTint}>
+                              {f.completeness === "COMPLETE" ? "Serviciu complet online" : "Serviciu parțial online"}
+                            </Pill>
+                          </div>
+                          {f.description && <div style={{ fontSize: 13, color: T.ink3, marginTop: 2 }}>{f.description}</div>}
+                        </div>
+                      </div>
+                      <Button id={fIdx === 0 && sectionKey === PORTAL_SECTION_ORDER[0] ? "portal-complete-btn" : undefined} style={{ padding: "8px 14px", fontSize: 13 }} onClick={() => setSelected(f)}>Completează</Button>
+                    </Card>
+                  ))}
                 </div>
               </div>
-              <Button id={fIdx === 0 ? "portal-complete-btn" : undefined} style={{ padding: "8px 14px", fontSize: 13 }} onClick={() => setSelected(f)}>Completează</Button>
-            </Card>
-          ))}
+            );
+          })}
           {forms.length === 0 && <p style={{ color: T.ink3 }}>Niciun formular publicat momentan.</p>}
         </div>
       ) : (
         <MyRequestsTab />
       )}
+
+      <div style={{ display: "flex", gap: 16, justifyContent: "center", marginTop: 32, paddingTop: 20, borderTop: `1px solid ${T.line}` }}>
+        <Link to="/pagini/termeni-si-conditii" style={{ fontSize: 12.5, color: T.ink3 }}>Termeni și condiții</Link>
+        <Link to="/pagini/politica-de-confidentialitate" style={{ fontSize: 12.5, color: T.ink3 }}>Politică de confidențialitate</Link>
+        <Link to="/pagini/contact" style={{ fontSize: 12.5, color: T.ink3 }}>Contact</Link>
+      </div>
     </AppShell>
   );
 }
