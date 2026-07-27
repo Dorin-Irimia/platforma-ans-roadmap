@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
-import { ShieldCheck, ShieldOff } from "lucide-react";
+import { ShieldCheck, ShieldOff, Monitor } from "lucide-react";
 import { AppShell } from "../components/AppShell";
 import { Card, SectionHeader, Button, FieldLabel, Pill } from "../components/ui";
 import { useToast } from "../components/ToastProvider";
 import { T } from "../theme";
+import { describeUserAgent } from "../lib/userAgent";
+import { useAuth } from "../features/iam/AuthContext";
 import {
   enroll2FA,
   verify2FA,
@@ -13,7 +15,107 @@ import {
   fetchEmailOtpStatus,
   enrollEmailOtp,
   disableEmailOtp,
+  fetchMySessions,
+  revokeMySession,
+  SessionRow,
 } from "../features/iam/api";
+
+function formatRelativeTime(iso: string): string {
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const minutes = Math.round(diffMs / 60_000);
+  if (minutes < 1) return "chiar acum";
+  if (minutes < 60) return `acum ${minutes} min`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `acum ${hours} h`;
+  const days = Math.round(hours / 24);
+  return `acum ${days} zile`;
+}
+
+// Sesiuni active + revocare per-dispozitiv — distinct de 2FA de mai sus: aici utilizatorul
+// vede fiecare login reușit (dispozitiv/IP/ultima activitate) și poate deconecta de la
+// distanță un dispozitiv anume, fără să-și schimbe parola sau să dezactiveze tot contul.
+function SessionsCard() {
+  const toast = useToast();
+  const { signOut } = useAuth();
+  const [sessions, setSessions] = useState<SessionRow[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [revokingId, setRevokingId] = useState<string | null>(null);
+
+  function load() {
+    fetchMySessions()
+      .then(setSessions)
+      .catch((e) => setError(e?.response?.data?.error || "Eroare la încărcare"));
+  }
+
+  useEffect(load, []);
+
+  async function handleRevoke(s: SessionRow) {
+    if (!window.confirm(s.isCurrent ? "Aceasta e sesiunea curentă — revocarea te va deconecta acum. Continui?" : "Deconectezi acest dispozitiv?")) return;
+    setRevokingId(s.id);
+    try {
+      await revokeMySession(s.id);
+      if (s.isCurrent) {
+        signOut();
+        return;
+      }
+      toast.success("Dispozitivul a fost deconectat.");
+      load();
+    } catch (e: any) {
+      toast.error(e?.response?.data?.error || "Revocare eșuată");
+    } finally {
+      setRevokingId(null);
+    }
+  }
+
+  return (
+    <Card style={{ maxWidth: 560, marginTop: 20 }}>
+      <SectionHeader title="Sesiuni active" />
+      {error && <p style={{ color: T.danger, fontSize: 13 }}>{error}</p>}
+      {sessions === null && <p style={{ color: T.ink3, fontSize: 13 }}>Se încarcă...</p>}
+      {sessions !== null && sessions.length === 0 && (
+        <p style={{ color: T.ink3, fontSize: 13 }}>Nicio sesiune înregistrată încă.</p>
+      )}
+      {sessions !== null && sessions.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {sessions.map((s) => (
+            <div
+              key={s.id}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 12,
+                padding: "10px 12px",
+                border: `1px solid ${T.line}`,
+                borderRadius: 10,
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <Monitor size={16} color={T.ink3} />
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", gap: 8 }}>
+                    {describeUserAgent(s.userAgent)}
+                    {s.isCurrent && <Pill color={T.success} bg={T.successTint}>Sesiunea curentă</Pill>}
+                  </div>
+                  <div style={{ fontSize: 12, color: T.ink3 }}>
+                    {s.ipAddress || "IP necunoscut"} · activ {formatRelativeTime(s.lastSeenAt)}
+                  </div>
+                </div>
+              </div>
+              <Button
+                variant="danger"
+                style={{ padding: "6px 12px", fontSize: 12, opacity: revokingId === s.id ? 0.7 : 1 }}
+                onClick={() => handleRevoke(s)}
+              >
+                Deconectează
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
 
 function EmailOtpCard() {
   const toast = useToast();
@@ -199,6 +301,7 @@ export default function SecurityPage() {
       </Card>
 
       <EmailOtpCard />
+      <SessionsCard />
     </AppShell>
   );
 }

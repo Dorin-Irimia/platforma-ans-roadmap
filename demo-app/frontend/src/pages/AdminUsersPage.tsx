@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { X } from "lucide-react";
+import { Fragment, useEffect, useState } from "react";
+import { X, Monitor } from "lucide-react";
 import {
   fetchUsers,
   setUserActive,
@@ -16,13 +16,17 @@ import {
   rejectExpiredPending,
   fetchLinkableEntities,
   linkUserEntity,
+  fetchUserSessions,
+  revokeUserSession,
   GroupRow,
   AuthPolicy,
   LinkableEntity,
+  SessionRow,
 } from "../features/iam/api";
 import { AppShell } from "../components/AppShell";
 import { Card, SectionHeader, Pill, Button, FieldLabel, ROLE_COLORS } from "../components/ui";
 import { T } from "../theme";
+import { describeUserAgent } from "../lib/userAgent";
 
 interface UserRow {
   id: string;
@@ -78,6 +82,55 @@ function EntityLinkSelect({ user, onLinked }: { user: UserRow; onLinked: (linked
         <option key={o.id} value={o.id}>{o.label}</option>
       ))}
     </select>
+  );
+}
+
+function formatRelativeTime(iso: string): string {
+  const minutes = Math.round((Date.now() - new Date(iso).getTime()) / 60_000);
+  if (minutes < 1) return "chiar acum";
+  if (minutes < 60) return `acum ${minutes} min`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `acum ${hours} h`;
+  return `acum ${Math.round(hours / 24)} zile`;
+}
+
+// Panou "Sesiuni active" per-utilizator — vizibil doar admin-ilor, expandat inline sub
+// rândul contului (același tipar ca panoul de invitație de mai sus, fără modal nou).
+function UserSessionsPanel({ user }: { user: UserRow }) {
+  const [sessions, setSessions] = useState<SessionRow[] | null>(null);
+
+  function load() {
+    fetchUserSessions(user.id).then(setSessions).catch(() => setSessions([]));
+  }
+
+  useEffect(load, [user.id]);
+
+  async function handleRevoke(s: SessionRow) {
+    await revokeUserSession(user.id, s.id);
+    load();
+  }
+
+  if (sessions === null) return <p style={{ fontSize: 12.5, color: T.ink3, margin: 0 }}>Se încarcă...</p>;
+  if (sessions.length === 0) return <p style={{ fontSize: 12.5, color: T.ink3, margin: 0 }}>Nicio sesiune activă pentru acest cont.</p>;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      {sessions.map((s) => (
+        <div
+          key={s.id}
+          style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "8px 10px", background: T.bgSoft, border: `1px solid ${T.line}`, borderRadius: 8 }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5 }}>
+            <Monitor size={14} color={T.ink3} />
+            <span style={{ fontWeight: 600 }}>{describeUserAgent(s.userAgent)}</span>
+            <span style={{ color: T.ink3 }}>{s.ipAddress || "IP necunoscut"} · activ {formatRelativeTime(s.lastSeenAt)}</span>
+          </div>
+          <Button variant="danger" style={{ padding: "5px 10px", fontSize: 11.5 }} onClick={() => handleRevoke(s)}>
+            Revocă
+          </Button>
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -151,6 +204,8 @@ export default function AdminUsersPage() {
   const [policy, setPolicy] = useState<AuthPolicy | null>(null);
   const [policyMsg, setPolicyMsg] = useState<string | null>(null);
   const [savingPolicy, setSavingPolicy] = useState(false);
+
+  const [sessionsOpenFor, setSessionsOpenFor] = useState<string | null>(null);
 
   function loadUsers() {
     fetchUsers().then(setUsers).catch((e) => setError(e?.response?.data?.error || "Eroare la încărcare"));
@@ -302,41 +357,53 @@ export default function AdminUsersPage() {
           </thead>
           <tbody>
             {users.map((u, uIdx) => (
-              <tr key={u.id}>
-                <td style={{ paddingLeft: 20, fontWeight: 600 }}>{u.email}</td>
-                <td>{u.name || "—"}</td>
-                <td>
-                  <RoleSelect id={uIdx === 0 ? "admin-role-select" : undefined} value={u.role} onChange={(role) => changeRole(u, role)} />
-                </td>
-                <td>
-                  {LINKABLE_ROLES.includes(u.role) ? (
-                    <EntityLinkSelect
-                      user={u}
-                      onLinked={(linkedEntity) => setUsers((prev) => prev.map((row) => (row.id === u.id ? { ...row, linkedEntity } : row)))}
-                    />
-                  ) : (
-                    <span style={{ color: T.ink4, fontSize: 12 }}>—</span>
-                  )}
-                </td>
-                <td>
-                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                    {u.isActive ? (
-                      <Pill color={T.success} bg={T.successTint}>Activ</Pill>
+              <Fragment key={u.id}>
+                <tr>
+                  <td style={{ paddingLeft: 20, fontWeight: 600 }}>{u.email}</td>
+                  <td>{u.name || "—"}</td>
+                  <td>
+                    <RoleSelect id={uIdx === 0 ? "admin-role-select" : undefined} value={u.role} onChange={(role) => changeRole(u, role)} />
+                  </td>
+                  <td>
+                    {LINKABLE_ROLES.includes(u.role) ? (
+                      <EntityLinkSelect
+                        user={u}
+                        onLinked={(linkedEntity) => setUsers((prev) => prev.map((row) => (row.id === u.id ? { ...row, linkedEntity } : row)))}
+                      />
                     ) : (
-                      <Pill color={T.danger} bg={T.dangerTint}>Blocat</Pill>
+                      <span style={{ color: T.ink4, fontSize: 12 }}>—</span>
                     )}
-                    {u.pendingTooLong && <Pill color={T.warn} bg={T.warnTint}>În așteptare expirată</Pill>}
-                  </div>
-                </td>
-                <td style={{ paddingRight: 20, display: "flex", gap: 8, justifyContent: "flex-end" }}>
-                  <Button variant={u.isActive ? "danger" : "primary"} style={{ padding: "6px 12px", fontSize: 12 }} onClick={() => toggleActive(u)}>
-                    {u.isActive ? "Blochează" : "Deblochează"}
-                  </Button>
-                  <Button variant="ghost" style={{ padding: "6px 12px", fontSize: 12 }} onClick={() => handleDelete(u)}>
-                    Șterge
-                  </Button>
-                </td>
-              </tr>
+                  </td>
+                  <td>
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                      {u.isActive ? (
+                        <Pill color={T.success} bg={T.successTint}>Activ</Pill>
+                      ) : (
+                        <Pill color={T.danger} bg={T.dangerTint}>Blocat</Pill>
+                      )}
+                      {u.pendingTooLong && <Pill color={T.warn} bg={T.warnTint}>În așteptare expirată</Pill>}
+                    </div>
+                  </td>
+                  <td style={{ paddingRight: 20, display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                    <Button variant="ghost" style={{ padding: "6px 12px", fontSize: 12 }} onClick={() => setSessionsOpenFor(sessionsOpenFor === u.id ? null : u.id)}>
+                      Sesiuni
+                    </Button>
+                    <Button variant={u.isActive ? "danger" : "primary"} style={{ padding: "6px 12px", fontSize: 12 }} onClick={() => toggleActive(u)}>
+                      {u.isActive ? "Blochează" : "Deblochează"}
+                    </Button>
+                    <Button variant="ghost" style={{ padding: "6px 12px", fontSize: 12 }} onClick={() => handleDelete(u)}>
+                      Șterge
+                    </Button>
+                  </td>
+                </tr>
+                {sessionsOpenFor === u.id && (
+                  <tr>
+                    <td colSpan={6} style={{ padding: "0 20px 14px" }}>
+                      <UserSessionsPanel user={u} />
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
             ))}
           </tbody>
         </table>

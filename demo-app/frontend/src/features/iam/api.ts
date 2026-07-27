@@ -246,4 +246,35 @@ export async function downloadSecretK8sManifest(key: string) {
   URL.revokeObjectURL(url);
 }
 
+// --- Sesiuni active + revocare per-dispozitiv ---
+
+export interface SessionRow {
+  id: string;
+  ipAddress?: string | null;
+  userAgent?: string | null;
+  createdAt: string;
+  lastSeenAt: string;
+  isCurrent?: boolean;
+}
+
+export async function fetchMySessions(): Promise<SessionRow[]> {
+  const { data } = await api.get("/api/iam/sessions");
+  return data;
+}
+
+export async function revokeMySession(id: string) {
+  const { data } = await api.delete(`/api/iam/sessions/${id}`);
+  return data;
+}
+
+export async function fetchUserSessions(userId: string): Promise<SessionRow[]> {
+  const { data } = await api.get(`/api/iam/users/${userId}/sessions`);
+  return data;
+}
+
+export async function revokeUserSession(userId: string, sessionId: string) {
+  const { data } = await api.delete(`/api/iam/users/${userId}/sessions/${sessionId}`);
+  return data;
+}
+
 export default api;

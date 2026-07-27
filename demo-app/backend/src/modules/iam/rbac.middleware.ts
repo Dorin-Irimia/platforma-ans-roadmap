@@ -2,18 +2,22 @@ import { Request, Response, NextFunction } from "express";
 import { supabaseAdmin } from "../../shared/supabase";
 import { prisma } from "../../shared/prisma";
 import { RoleName } from "./types";
+import { checkAndTouchSession } from "./sessions.service";
 
 export interface AuthedRequest extends Request {
   user?: { id: string; email: string; role: RoleName };
 }
 
 // Validează tokenul Bearer contra Supabase Auth, apoi rezolvă rolul/starea contului
-// din tabela locală User (Supabase deține doar credențialele/sesiunea).
+// din tabela locală User (Supabase deține doar credențialele/sesiunea). Verifică în plus
+// dacă sesiunea a fost revocată individual (Sesiuni active, vezi sessions.service.ts) —
+// distinct de blocarea completă a contului, verificată deja prin isActive.
 async function resolveUser(token: string) {
   const { data, error } = await supabaseAdmin.auth.getUser(token);
   if (error || !data?.user) return null;
   const localUser = await prisma.user.findUnique({ where: { id: data.user.id } });
   if (!localUser || !localUser.isActive) return null;
+  if (!(await checkAndTouchSession(token))) return null;
   return { id: localUser.id, email: localUser.email, role: localUser.role as RoleName };
 }
 

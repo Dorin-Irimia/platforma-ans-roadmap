@@ -3,6 +3,7 @@ import crypto from "crypto";
 import { prisma } from "../../shared/prisma";
 import { supabaseAdmin, supabaseAnon } from "../../shared/supabase";
 import { logAction } from "./audit.service";
+import { createUserSession } from "./sessions.service";
 
 export const roeidRouter = Router();
 
@@ -115,6 +116,7 @@ roeidRouter.get("/login/roeid/callback", async (req, res) => {
     if (signInError || !sessionData?.session) throw new Error("Nu s-a putut crea sesiunea locală");
 
     await logAction({ userId: localUser.id, action: "LOGIN_SUCCESS", metadata: { via: "roeid" } });
+    await createUserSession(localUser.id, sessionData.session.access_token);
     const qs = new URLSearchParams({
       roeidToken: sessionData.session.access_token,
       roeidUserId: localUser.id,

@@ -8,6 +8,7 @@ import { requireAuth, requireRole, AuthedRequest } from "./rbac.middleware";
 import { logAction, queryAuditLog } from "./audit.service";
 import { encryptSecret, decryptSecret } from "./secrets.service";
 import { getAuthPolicy, validatePassword } from "./policy";
+import { createUserSession, listUserSessions, revokeSession, extractSessionId } from "./sessions.service";
 
 // Limitare de rată pe autentificare — cerință de monitorizare securitate (Scenariul 5,
 // pct. 9: „simulare/vizualizare evenimente de securitate ... rate limiting"), separată de
@@ -240,6 +241,7 @@ async function completeLogin(
   }
 
   await logAction({ userId: localUser.id, action: "LOGIN_SUCCESS" });
+  await createUserSession(localUser.id, finalAccessToken);
   return res.json({
     token: finalAccessToken,
     user: { id: localUser.id, email: localUser.email, role: localUser.role },
@@ -742,5 +744,55 @@ iamRouter.get(
     res.setHeader("Content-Type", "application/yaml");
     res.setHeader("Content-Disposition", `attachment; filename="${manifestName}-secret.yaml"`);
     res.send(yaml);
+  }
+);
+
+// --- Sesiuni active + revocare per-dispozitiv (distinct de blocarea completă a contului,
+// vezi PATCH /users/:id/active) — fiecare rând corespunde unui login reușit (parolă+2FA
+// sau RoEID), corelat cu tokenul Supabase prin session_id (sessions.service.ts). ---
+
+function currentSessionId(req: AuthedRequest): string | null {
+  const header = req.headers.authorization;
+  if (!header?.startsWith("Bearer ")) return null;
+  return extractSessionId(header.slice(7));
+}
+
+iamRouter.get("/sessions", requireAuth, async (req: AuthedRequest, res) => {
+  const sessions = await listUserSessions(req.user!.id);
+  const activeId = currentSessionId(req);
+  res.json(sessions.map((s) => ({ ...s, isCurrent: s.supabaseSessionId === activeId })));
+});
+
+iamRouter.delete("/sessions/:id", requireAuth, async (req: AuthedRequest, res) => {
+  const revoked = await revokeSession(req.params.id, req.user!.id);
+  if (!revoked) return res.status(404).json({ error: "Sesiune inexistentă" });
+  await logAction({ userId: req.user!.id, action: "SESSION_REVOKED", resource: `session:${revoked.id}` });
+  res.json({ id: revoked.id, revokedAt: revoked.revokedAt });
+});
+
+iamRouter.get(
+  "/users/:id/sessions",
+  requireAuth,
+  requireRole("SUPER_ADMIN", "ADMIN_INSTITUTIE"),
+  async (req: AuthedRequest, res) => {
+    const sessions = await listUserSessions(req.params.id);
+    res.json(sessions);
+  }
+);
+
+iamRouter.delete(
+  "/users/:id/sessions/:sessionId",
+  requireAuth,
+  requireRole("SUPER_ADMIN", "ADMIN_INSTITUTIE"),
+  async (req: AuthedRequest, res) => {
+    const revoked = await revokeSession(req.params.sessionId);
+    if (!revoked || revoked.userId !== req.params.id) return res.status(404).json({ error: "Sesiune inexistentă" });
+    await logAction({
+      userId: req.user!.id,
+      action: "SESSION_REVOKED_BY_ADMIN",
+      resource: `session:${revoked.id}`,
+      metadata: { targetUserId: req.params.id },
+    });
+    res.json({ id: revoked.id, revokedAt: revoked.revokedAt });
   }
 );

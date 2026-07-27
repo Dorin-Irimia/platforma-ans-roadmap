@@ -74,6 +74,7 @@ model User {
   clubProfile         SportsClub?
   federationProfile   SportsFederation?
   mediaAssets         MediaAsset[]
+  sessions            UserSession[]
 }
 
 // Al doilea canal 2FA (pct. 4.4.2), paralel cu TOTP-ul delegat la Supabase Auth MFA —
@@ -94,6 +95,25 @@ model EmailOtpChallenge {
   expiresAt  DateTime
   consumedAt DateTime?
   createdAt  DateTime  @default(now())
+
+  @@index([userId])
+}
+
+// Sesiune activă per-dispozitiv, corelată cu tokenul Supabase prin claim-ul `session_id`
+// din JWT — permite revocare individuală ("dezautentifică acest dispozitiv"), distinctă
+// de blocarea completă a contului (User.isActive). Nu invalidează tokenul Supabase în
+// sine — accesul e tăiat de rbac.middleware.ts, care respinge orice cerere al cărei
+// session_id corespunde unui rând cu revokedAt setat, indiferent dacă JWT-ul mai e valid.
+model UserSession {
+  id                String    @id @default(uuid())
+  userId            String
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  supabaseSessionId String    @unique
+  ipAddress         String?
+  userAgent         String?
+  createdAt         DateTime  @default(now())
+  lastSeenAt        DateTime  @default(now())
+  revokedAt         DateTime?
 
   @@index([userId])
 }
