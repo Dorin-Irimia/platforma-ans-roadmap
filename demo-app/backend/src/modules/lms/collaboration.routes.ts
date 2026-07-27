@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../../shared/prisma";
-import { requireAuth, AuthedRequest } from "../iam/rbac.middleware";
+import { requireAuth, requireRole, AuthedRequest } from "../iam/rbac.middleware";
 import { logAction } from "../iam/audit.service";
 import { hasCourseAccess } from "./rbac";
 import { computeLessonLocks } from "./lessons.routes";
@@ -123,6 +123,22 @@ lmsCollaborationRouter.patch("/comments/:id/status", requireAuth, async (req: Au
     include: { author: authorSelect, replies: { include: { author: authorSelect } } },
   });
   res.json(updated);
+});
+
+// Ștergere comentariu (+ răspunsurile lui, via cascade pe schema) — curățare comentarii
+// vechi, rezervată Super Admin (nu autorului/colaboratorilor obișnuiți ai cursului, ca
+// să nu se poată "ascunde" feedback prin ștergere din partea celui evaluat).
+lmsCollaborationRouter.delete("/comments/:id", requireAuth, requireRole("SUPER_ADMIN"), async (req: AuthedRequest, res) => {
+  const comment = await prisma.lmsComment.findUnique({ where: { id: req.params.id } });
+  if (!comment) return res.status(404).json({ error: "Comentariu inexistent" });
+  await prisma.lmsComment.delete({ where: { id: comment.id } });
+  await logAction({
+    userId: req.user!.id,
+    action: "LMS_COMMENT_DELETED",
+    resource: `lmscomment:${comment.id}`,
+    metadata: { lessonId: comment.lessonId, authorId: comment.authorId },
+  });
+  res.json({ deleted: true });
 });
 
 // Rubrică de evaluare — criterii + scor structurat (pct. 12).

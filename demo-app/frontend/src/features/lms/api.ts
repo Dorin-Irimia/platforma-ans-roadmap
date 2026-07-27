@@ -229,6 +229,11 @@ export async function updateCommentStatus(id: string, status: LmsCommentStatus):
   return data;
 }
 
+// Ștergere comentariu (+ răspunsurile lui) — rezervată Super Admin (vezi ruta backend).
+export async function deleteComment(id: string): Promise<void> {
+  await api.delete(`/api/lms/comments/${id}`);
+}
+
 export async function fetchRubric(courseId: string): Promise<LmsRubricDto | null> {
   const { data } = await api.get(`/api/lms/courses/${courseId}/rubric`);
   return data;

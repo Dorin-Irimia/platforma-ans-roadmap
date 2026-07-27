@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import { Card, Button, SectionHeader, Pill } from "../ui";
 import { T } from "../../theme";
+import { useAuth } from "../../features/iam/AuthContext";
 import {
   fetchComments,
   addComment,
   replyToComment,
   updateCommentStatus,
+  deleteComment,
   fetchRubric,
   saveRubric,
   submitRubricScore,
@@ -28,14 +30,18 @@ function CommentItem({
   comment,
   blocks,
   isFirst,
+  canDelete,
   onStatusChange,
   onReply,
+  onDelete,
 }: {
   comment: LmsCommentDto;
   blocks: LessonBlock[];
   isFirst: boolean;
+  canDelete: boolean;
   onStatusChange: (id: string, status: LmsCommentStatus) => Promise<void>;
   onReply: (id: string, body: string) => Promise<void>;
+  onDelete: (id: string) => Promise<void>;
 }) {
   const [replying, setReplying] = useState(false);
   const [replyBody, setReplyBody] = useState("");
@@ -97,16 +103,31 @@ function CommentItem({
         <Button variant="ghost" style={{ fontSize: 11.5, padding: "4px 10px" }} onClick={() => setReplying(!replying)}>
           Răspunde
         </Button>
+        {canDelete && (
+          <Button variant="danger" style={{ fontSize: 11.5, padding: "4px 10px" }} onClick={() => onDelete(comment.id)}>
+            Șterge
+          </Button>
+        )}
       </div>
 
       {comment.replies && comment.replies.length > 0 && (
         <div style={{ marginTop: 10, paddingLeft: 14, borderLeft: `2px solid ${T.line}`, display: "flex", flexDirection: "column", gap: 8 }}>
           {comment.replies.map((r) => (
-            <div key={r.id}>
-              <div style={{ fontSize: 11.5, color: T.ink3 }}>
-                <strong style={{ color: T.ink2 }}>{r.author?.name || r.author?.email || "Utilizator"}</strong> · {new Date(r.createdAt).toLocaleString("ro-RO")}
+            <div key={r.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
+              <div>
+                <div style={{ fontSize: 11.5, color: T.ink3 }}>
+                  <strong style={{ color: T.ink2 }}>{r.author?.name || r.author?.email || "Utilizator"}</strong> · {new Date(r.createdAt).toLocaleString("ro-RO")}
+                </div>
+                <div style={{ fontSize: 13, color: T.ink }}>{r.body}</div>
               </div>
-              <div style={{ fontSize: 13, color: T.ink }}>{r.body}</div>
+              {canDelete && (
+                <button
+                  onClick={() => onDelete(r.id)}
+                  style={{ border: "none", background: "none", color: T.danger, fontSize: 11, cursor: "pointer", padding: "2px 4px", flexShrink: 0 }}
+                >
+                  Șterge
+                </button>
+              )}
             </div>
           ))}
         </div>
@@ -133,6 +154,8 @@ function CommentItem({
 // Panou de revizuire — comentarii contextuale pe bloc + rezolvare, plus rubrică de
 // evaluare cu feedback structurat (pct. 12).
 export function ReviewPanel({ courseId, lessonId, blocks }: { courseId: string; lessonId: string; blocks: LessonBlock[] }) {
+  const { user } = useAuth();
+  const canDelete = user?.role === "SUPER_ADMIN";
   const [comments, setComments] = useState<LmsCommentDto[]>([]);
   const [criteria, setCriteria] = useState<LmsRubricCriterion[]>([]);
   const [scores, setScores] = useState<Record<string, number>>({});
@@ -160,6 +183,12 @@ export function ReviewPanel({ courseId, lessonId, blocks }: { courseId: string; 
 
   async function handleReply(id: string, body: string) {
     await replyToComment(id, body);
+    loadComments();
+  }
+
+  async function handleDelete(id: string) {
+    if (!window.confirm("Ștergi definitiv acest comentariu? Acțiunea nu poate fi anulată.")) return;
+    await deleteComment(id);
     loadComments();
   }
 
@@ -194,8 +223,10 @@ export function ReviewPanel({ courseId, lessonId, blocks }: { courseId: string; 
               comment={c}
               blocks={blocks}
               isFirst={cIdx === 0}
+              canDelete={canDelete}
               onStatusChange={handleStatusChange}
               onReply={handleReply}
+              onDelete={handleDelete}
             />
           ))}
           {comments.length === 0 && <p style={{ color: T.ink3, fontSize: 13 }}>Niciun comentariu pe această lecție încă.</p>}
