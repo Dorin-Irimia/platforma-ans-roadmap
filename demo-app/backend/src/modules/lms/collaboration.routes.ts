@@ -4,6 +4,7 @@ import { prisma } from "../../shared/prisma";
 import { requireAuth, AuthedRequest } from "../iam/rbac.middleware";
 import { logAction } from "../iam/audit.service";
 import { hasCourseAccess } from "./rbac";
+import { computeLessonLocks } from "./lessons.routes";
 
 export const lmsCollaborationRouter = Router();
 
@@ -31,31 +32,96 @@ lmsCollaborationRouter.delete("/courses/:id/collaborators/:userId", requireAuth,
   res.json({ deleted: true });
 });
 
-// Panou de revizuire — comentarii contextuale pe bloc + rezolvare (pct. 12).
-const commentSchema = z.object({ blockId: z.string(), body: z.string().min(1) });
+// Panou de revizuire — comentarii contextuale pe bloc + rezolvare (pct. 12). `quote` e
+// fragmentul exact selectat (text sau enunțul unei întrebări) — comentariu "ca la Word",
+// ancorat la o secvență precisă, nu doar la tot blocul.
+const commentSchema = z.object({ blockId: z.string(), body: z.string().min(1), quote: z.string().optional() });
+const authorSelect = { select: { id: true, name: true, email: true } } as const;
 
-lmsCollaborationRouter.get("/lessons/:id/comments", requireAuth, async (req, res) => {
-  const comments = await prisma.lmsComment.findMany({ where: { lessonId: req.params.id }, orderBy: { createdAt: "asc" } });
+lmsCollaborationRouter.get("/lessons/:id/comments", requireAuth, async (req: AuthedRequest, res) => {
+  const lesson = await prisma.lmsLesson.findUnique({ where: { id: req.params.id } });
+  if (!lesson) return res.status(404).json({ error: "Lecție inexistentă" });
+  const isEditor = await hasCourseAccess(lesson.courseId, req.user!);
+  // Comentariile sunt vizibile integral doar colaboratorilor/autorilor cursului — un
+  // cursant obișnuit își vede DOAR propriile comentarii (+ răspunsurile primite la ele),
+  // niciodată comentariile altor cursanți.
+  //
+  // Doar comentariile de nivel superior — răspunsurile (parentId setat) vin înlănțuite
+  // sub fiecare comentariu-părinte, ca un fir de discuție (ca la Word).
+  const comments = await prisma.lmsComment.findMany({
+    where: { lessonId: req.params.id, parentId: null, ...(isEditor ? {} : { authorId: req.user!.id }) },
+    include: {
+      author: authorSelect,
+      replies: { include: { author: authorSelect }, orderBy: { createdAt: "asc" } },
+    },
+    orderBy: { createdAt: "asc" },
+  });
   res.json(comments);
 });
 
 lmsCollaborationRouter.post("/lessons/:id/comments", requireAuth, async (req: AuthedRequest, res) => {
   const lesson = await prisma.lmsLesson.findUnique({ where: { id: req.params.id } });
   if (!lesson) return res.status(404).json({ error: "Lecție inexistentă" });
-  if (!(await hasCourseAccess(lesson.courseId, req.user!))) return res.status(403).json({ error: "Acces interzis" });
+  const isEditor = await hasCourseAccess(lesson.courseId, req.user!);
+  if (!isEditor) {
+    // Cursant: comentariile trebuie permise explicit de curs ("allowLearnerComments"),
+    // iar lecția trebuie să fie deja deblocată pentru el ("în momentul în care au
+    // deblocat o lecție" — nu poate comenta pe o lecție încă blocată).
+    const course = await prisma.lmsCourse.findUnique({
+      where: { id: lesson.courseId },
+      select: { allowLearnerComments: true, requireQuizToAdvance: true },
+    });
+    if (!course?.allowLearnerComments) return res.status(403).json({ error: "Comentariile nu sunt permise cursanților la acest curs" });
+    const courseLessons = await prisma.lmsLesson.findMany({ where: { courseId: lesson.courseId }, orderBy: { order: "asc" } });
+    const locks = await computeLessonLocks(courseLessons, req.user!.id, course.requireQuizToAdvance);
+    if (locks.get(lesson.id)) return res.status(403).json({ error: "Lecția este încă blocată" });
+  }
   const parsed = commentSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
   const comment = await prisma.lmsComment.create({
-    data: { lessonId: lesson.id, blockId: parsed.data.blockId, body: parsed.data.body, authorId: req.user!.id },
+    data: { lessonId: lesson.id, blockId: parsed.data.blockId, body: parsed.data.body, quote: parsed.data.quote, authorId: req.user!.id },
+    include: { author: authorSelect, replies: { include: { author: authorSelect } } },
   });
   res.status(201).json(comment);
 });
 
-lmsCollaborationRouter.patch("/comments/:id/resolve", requireAuth, async (req: AuthedRequest, res) => {
+const replySchema = z.object({ body: z.string().min(1) });
+
+// Răspuns la un comentariu existent (fir de discuție) — moștenește lessonId/blockId/quote
+// de la comentariul-părinte, ca să rămână ancorat în același loc din lecție.
+lmsCollaborationRouter.post("/comments/:id/replies", requireAuth, async (req: AuthedRequest, res) => {
+  const parent = await prisma.lmsComment.findUnique({ where: { id: req.params.id }, include: { lesson: true } });
+  if (!parent) return res.status(404).json({ error: "Comentariu inexistent" });
+  if (!(await hasCourseAccess(parent.lesson.courseId, req.user!))) return res.status(403).json({ error: "Acces interzis" });
+  const parsed = replySchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+  const reply = await prisma.lmsComment.create({
+    data: {
+      lessonId: parent.lessonId,
+      blockId: parent.blockId,
+      quote: parent.quote,
+      parentId: parent.id,
+      body: parsed.data.body,
+      authorId: req.user!.id,
+    },
+    include: { author: authorSelect },
+  });
+  res.status(201).json(reply);
+});
+
+const statusSchema = z.object({ status: z.enum(["OPEN", "RESOLVED", "REJECTED"]) });
+
+lmsCollaborationRouter.patch("/comments/:id/status", requireAuth, async (req: AuthedRequest, res) => {
   const comment = await prisma.lmsComment.findUnique({ where: { id: req.params.id }, include: { lesson: true } });
   if (!comment) return res.status(404).json({ error: "Comentariu inexistent" });
   if (!(await hasCourseAccess(comment.lesson.courseId, req.user!))) return res.status(403).json({ error: "Acces interzis" });
-  const updated = await prisma.lmsComment.update({ where: { id: comment.id }, data: { resolved: true } });
+  const parsed = statusSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+  const updated = await prisma.lmsComment.update({
+    where: { id: comment.id },
+    data: { status: parsed.data.status },
+    include: { author: authorSelect, replies: { include: { author: authorSelect } } },
+  });
   res.json(updated);
 });
 

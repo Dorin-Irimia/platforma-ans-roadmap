@@ -175,7 +175,7 @@ registryRouter.get("/requests/:id", requireAuth, requireStaff(), async (req, res
         orderBy: { createdAt: "desc" },
       },
       documents: {
-        where: { kind: "ATTACHMENT" },
+        where: { kind: { in: ["ATTACHMENT", "SUBMISSION_PDF"] } },
         select: { ...DOCUMENT_PUBLIC_SELECT, uploadedBy: { select: { id: true, email: true, name: true } } },
         orderBy: { createdAt: "desc" },
       },

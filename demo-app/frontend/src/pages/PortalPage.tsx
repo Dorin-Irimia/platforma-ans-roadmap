@@ -452,10 +452,21 @@ function MyRequestsTab() {
               Cererea este încă în lucru — răspunsul oficial va apărea aici, disponibil pentru descărcare, odată semnat și transmis.
             </p>
           )}
-          {detail.documents.length > 0 && (
+          {detail.documents.some((d) => d.kind === "SUBMISSION_PDF") && (
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>Cererea depusă</div>
+              {detail.documents.filter((d) => d.kind === "SUBMISSION_PDF").map((d) => (
+                <div key={d.id} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: `1px solid ${T.line}` }}>
+                  <span style={{ fontSize: 13 }}>{d.filename}</span>
+                  <Button variant="ghost" style={{ padding: "4px 10px", fontSize: 12 }} onClick={() => openDocument(d.id)}>Deschide / descarcă</Button>
+                </div>
+              ))}
+            </div>
+          )}
+          {detail.documents.some((d) => d.kind === "ATTACHMENT") && (
             <div>
               <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>Documente atașate de tine</div>
-              {detail.documents.map((d) => (
+              {detail.documents.filter((d) => d.kind === "ATTACHMENT").map((d) => (
                 <div key={d.id} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: `1px solid ${T.line}` }}>
                   <span style={{ fontSize: 13 }}>{d.filename}</span>
                   <Button variant="ghost" style={{ padding: "4px 10px", fontSize: 12 }} onClick={() => openDocument(d.id)}>Deschide</Button>

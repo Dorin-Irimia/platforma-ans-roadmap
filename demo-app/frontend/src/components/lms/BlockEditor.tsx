@@ -1,4 +1,4 @@
-import { ReactNode, useState } from "react";
+import { ReactNode, useState, ChangeEvent } from "react";
 import { useEditor, EditorContent, Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Underline from "@tiptap/extension-underline";
@@ -29,11 +29,14 @@ import {
   Trash,
   Undo2,
   Redo2,
+  Upload,
 } from "lucide-react";
 import { diffWords } from "diff";
 import { T } from "../../theme";
 import { Button, FieldLabel } from "../ui";
-import { LessonBlock, LmsQuizQuestion, correctIndexesOf, rewriteText } from "../../features/lms/api";
+import { LessonBlock, LmsQuizQuestion, correctIndexesOf, rewriteText, uploadLmsMedia, lmsMediaUrl } from "../../features/lms/api";
+import { generateId } from "../../lib/id";
+import { toEmbeddableVideo } from "./LessonBlocksView";
 import { speakText, stopSpeech, isSpeechSynthesisSupported } from "../../features/chatbot/speech";
 
 const REWRITE_ACTIONS: { key: "REWRITE" | "ADAPT" | "EXPAND" | "SUMMARIZE"; label: string }[] = [
@@ -64,6 +67,32 @@ function truncateStart(s: string, max: number): string {
 
 function truncateEnd(s: string, max: number): string {
   return s.length > max ? `${s.slice(0, max)}…` : s;
+}
+
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+// Textul AI (rewriteText) vine ca text simplu, cu paragrafe separate prin linii goale —
+// nu ca HTML. `insertContentAt` cu un string simplu bagă acele "\n\n" ca text literal
+// într-un singur nod <p>, nu ca paragrafe reale (spre deosebire de Enter apăsat manual,
+// care creează noduri <p> separate în TipTap) — la reîncărcare, whitespace-ul normal HTML
+// se colapsează și spațierea dispare. Dar înfășurarea în <p> forțează ProseMirror să
+// despartă paragraful existent în care se inserează (before/inserted/after), ceea ce
+// adaugă un rând gol înainte și după chiar și când textul are un singur paragraf — exact
+// ce nu-și dorește utilizatorul. De aceea folosim <p> DOAR când textul chiar are mai multe
+// paragrafe (spațiere interioară reală); un singur paragraf se inserează inline, ca text
+// simplu, fără să forțeze nicio despărțire de paragraf la început/sfârșit.
+function textToHtml(text: string): string {
+  const paragraphs = text
+    .trim()
+    .split(/\n{2,}/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+  if (paragraphs.length <= 1) {
+    return escapeHtml(paragraphs[0] || "").replace(/\n/g, "<br>");
+  }
+  return paragraphs.map((para) => `<p>${escapeHtml(para).replace(/\n/g, "<br>")}</p>`).join("");
 }
 
 function ToolbarButton({ active, disabled, onClick, title, children }: { active?: boolean; disabled?: boolean; onClick: () => void; title: string; children: ReactNode }) {
@@ -174,7 +203,7 @@ function TextBlockEditor({ block, onChange }: { block: Extract<LessonBlock, { ty
 
   function handleAccept() {
     if (!pending || !editor) return;
-    editor.chain().focus().insertContentAt({ from: pending.start, to: pending.end }, pending.result).run();
+    editor.chain().focus().insertContentAt({ from: pending.start, to: pending.end }, textToHtml(pending.result)).run();
     setPending(null);
     setSelection(null);
   }
@@ -277,6 +306,78 @@ function TextBlockEditor({ block, onChange }: { block: Extract<LessonBlock, { ty
   );
 }
 
+// Încărcare directă de pe calculator (imagine/video) — trimite fișierul la
+// /api/lms/media (media.routes.ts), primește un id și construiește URL-ul public de
+// afișare (lmsMediaUrl). Câmpul URL manual rămâne disponibil în paralel, pentru
+// cine vrea să lege o resursă externă în loc să încarce un fișier nou.
+function MediaBlockEditor({ block, onChange }: { block: Extract<LessonBlock, { type: "IMAGE" | "VIDEO" }>; onChange: (b: LessonBlock) => void }) {
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const isImage = block.type === "IMAGE";
+
+  async function handleFile(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setUploading(true);
+    setError(null);
+    try {
+      const result = await uploadLmsMedia(file);
+      onChange({ ...block, url: lmsMediaUrl(result.id) });
+    } catch (err: any) {
+      setError(err?.response?.data?.error || "Încărcarea a eșuat");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  return (
+    <div>
+      <FieldLabel>{isImage ? "Imagine" : "Video"}</FieldLabel>
+      <label
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 6,
+          padding: "7px 12px",
+          borderRadius: 8,
+          border: `1px solid ${T.line}`,
+          background: T.line2,
+          fontSize: 12.5,
+          fontWeight: 600,
+          cursor: uploading ? "default" : "pointer",
+          color: T.ink2,
+          marginBottom: 8,
+        }}
+      >
+        {uploading ? <Loader2 size={13} className="spin" /> : <Upload size={13} />}
+        {uploading ? "Se încarcă..." : `Încarcă ${isImage ? "o imagine" : "un clip video"} de pe calculator`}
+        <input type="file" accept={isImage ? "image/*" : "video/*"} onChange={handleFile} disabled={uploading} style={{ display: "none" }} />
+      </label>
+      {error && <p style={{ color: T.danger, fontSize: 12, marginTop: 0, marginBottom: 8 }}>{error}</p>}
+      <FieldLabel>sau URL {isImage ? "imagine" : "video"}</FieldLabel>
+      <input value={block.url} onChange={(e) => onChange({ ...block, url: e.target.value })} style={{ width: "100%", marginBottom: 10 }} placeholder="https://..." />
+      {block.url && (isImage ? (
+        <img src={block.url} alt="" style={{ maxWidth: "100%", maxHeight: 160, borderRadius: 8, marginBottom: 10, display: "block" }} />
+      ) : (() => {
+        const embed = toEmbeddableVideo(block.url);
+        return embed.kind === "iframe" ? (
+          <iframe
+            src={embed.src}
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+            style={{ width: "100%", maxWidth: 320, height: 180, border: "none", borderRadius: 8, marginBottom: 10, display: "block" }}
+          />
+        ) : (
+          <video src={embed.src} controls style={{ maxWidth: "100%", maxHeight: 160, borderRadius: 8, marginBottom: 10, display: "block" }} />
+        );
+      })())}
+      <FieldLabel>Descriere (opțional)</FieldLabel>
+      <input value={block.caption || ""} onChange={(e) => onChange({ ...block, caption: e.target.value })} style={{ width: "100%" }} />
+    </div>
+  );
+}
+
 function QuizBlockEditor({ block, onChange }: { block: Extract<LessonBlock, { type: "QUIZ" }>; onChange: (b: LessonBlock) => void }) {
   function updateQuestion(idx: number, patch: Partial<LmsQuizQuestion>) {
     const questions = [...block.questions];
@@ -285,7 +386,7 @@ function QuizBlockEditor({ block, onChange }: { block: Extract<LessonBlock, { ty
   }
 
   function addQuestion() {
-    onChange({ ...block, questions: [...block.questions, { id: crypto.randomUUID(), text: "", options: ["Opțiune 1", "Opțiune 2"], correctIndexes: [0] }] });
+    onChange({ ...block, questions: [...block.questions, { id: generateId(), text: "", options: ["Opțiune 1", "Opțiune 2"], correctIndexes: [0] }] });
   }
 
   function toggleCorrect(qi: number, oi: number) {
@@ -352,14 +453,7 @@ export function BlockEditor({ block, onChange, onRemove, dragHandle }: { block: 
       </div>
 
       {block.type === "TEXT" && <TextBlockEditor block={block} onChange={onChange} />}
-      {(block.type === "IMAGE" || block.type === "VIDEO") && (
-        <div>
-          <FieldLabel>URL {block.type === "IMAGE" ? "imagine" : "video"}</FieldLabel>
-          <input value={block.url} onChange={(e) => onChange({ ...block, url: e.target.value })} style={{ width: "100%", marginBottom: 10 }} placeholder="https://..." />
-          <FieldLabel>Descriere (opțional)</FieldLabel>
-          <input value={block.caption || ""} onChange={(e) => onChange({ ...block, caption: e.target.value })} style={{ width: "100%" }} />
-        </div>
-      )}
+      {(block.type === "IMAGE" || block.type === "VIDEO") && <MediaBlockEditor block={block} onChange={onChange} />}
       {block.type === "QUIZ" && <QuizBlockEditor block={block} onChange={onChange} />}
     </div>
   );

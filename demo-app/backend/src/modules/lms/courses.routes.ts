@@ -13,29 +13,32 @@ const courseInclude = {
   rubric: true,
 };
 
-// Organizator/tablou de bord (pct. 10) — listă diferențiată pe rol: Autor/Co-autor vede
-// cursurile proprii (+ poate crea), Evaluator vede toate (pentru evaluare), Cursantul
-// vede doar catalogul publicat.
+// Organizator/tablou de bord (pct. 10) — listă diferențiată: Autor/Co-autor vede
+// cursurile proprii (+ poate crea), Evaluator/admin vede toate (pentru evaluare),
+// oricine altcineva vede catalogul publicat.
+//
+// Important: apartenența de curs (autor/colaborator) se verifică prin rândul real din
+// LmsCourseCollaborator, NU prin rolul global IAM al contului — invitarea unui utilizator
+// ca Co-autor (collaboration.routes.ts) adaugă doar acel rând, nu schimbă rolul global.
+// Un cont cu rol global UTILIZATOR_STANDARD/SPORTIV/etc. invitat ca Co-autor tot trebuie
+// să-și vadă cursul aici, altfel rămâne complet inaccesibil din UI (bug găsit în sesiune).
 lmsCoursesRouter.get("/courses", requireAuth, async (req: AuthedRequest, res) => {
   const user = req.user!;
   if (isPlatformAdmin(user.role) || user.role === "EVALUATOR") {
     const courses = await prisma.lmsCourse.findMany({ include: courseInclude, orderBy: { updatedAt: "desc" } });
     return res.json(courses);
   }
-  if (user.role === "AUTOR" || user.role === "CO_AUTOR") {
-    const courses = await prisma.lmsCourse.findMany({
-      where: { OR: [{ authorId: user.id }, { collaborators: { some: { userId: user.id } } }] },
-      include: courseInclude,
-      orderBy: { updatedAt: "desc" },
-    });
-    return res.json(courses);
-  }
-  const courses = await prisma.lmsCourse.findMany({
-    where: { status: "PUBLISHED" },
+  const owned = await prisma.lmsCourse.findMany({
+    where: { OR: [{ authorId: user.id }, { collaborators: { some: { userId: user.id } } }] },
     include: courseInclude,
     orderBy: { updatedAt: "desc" },
   });
-  res.json(courses);
+  const published = await prisma.lmsCourse.findMany({
+    where: { status: "PUBLISHED", id: { notIn: owned.map((c) => c.id) } },
+    include: courseInclude,
+    orderBy: { updatedAt: "desc" },
+  });
+  res.json([...owned, ...published]);
 });
 
 const createCourseSchema = z.object({
@@ -90,6 +93,9 @@ const updateCourseSchema = z.object({
   title: z.string().min(1).optional(),
   description: z.string().optional(),
   status: z.enum(["DRAFT", "PUBLISHED"]).optional(),
+  allowLearnerComments: z.boolean().optional(),
+  requireQuizToAdvance: z.boolean().optional(),
+  issueCertificate: z.boolean().optional(),
 });
 
 lmsCoursesRouter.patch("/courses/:id", requireAuth, async (req: AuthedRequest, res) => {

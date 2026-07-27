@@ -4,7 +4,10 @@
 // (același principiu ca DocuSign/PandaDoc: poziție relativă → coordonate absolute
 // PDF la momentul randării finale). Semnătura e un mock vizual (nu o semnătură
 // criptografică PAdES reală) — suficient pentru scopul demonstrativ al Scenariului 1.
-import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
+import { PDFDocument, rgb } from "pdf-lib";
+import fontkit from "@pdf-lib/fontkit";
+import { readFileSync } from "fs";
+import { DEJAVU_BOLD_PATH, DEJAVU_OBLIQUE_PATH } from "../../shared/pdfFonts";
 
 export interface StampInput {
   pdfBytes: Buffer;
@@ -19,6 +22,10 @@ export interface StampInput {
 
 export async function stampSignature(input: StampInput): Promise<Buffer> {
   const pdfDoc = await PDFDocument.load(input.pdfBytes);
+  // Fonturile standard pdf-lib (StandardFonts.*) au doar encoding WinAnsi — un nume de
+  // semnatar cu diacritice românești (ă/â/î/ș/ț) ar randa corupt. registerFontkit permite
+  // embed-area unui font TTF real (DejaVu Sans, cu acoperire Unicode Latin Extended-A).
+  pdfDoc.registerFontkit(fontkit);
   const pages = pdfDoc.getPages();
   const pageIndex = Math.min(Math.max(input.page, 0), pages.length - 1);
   const page = pages[pageIndex];
@@ -31,8 +38,8 @@ export async function stampSignature(input: StampInput): Promise<Buffer> {
   const yTop = input.yRatio * pageHeight;
   const y = pageHeight - yTop - boxHeight;
 
-  const font = await pdfDoc.embedFont(StandardFonts.HelveticaOblique);
-  const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  const font = await pdfDoc.embedFont(readFileSync(DEJAVU_OBLIQUE_PATH));
+  const boldFont = await pdfDoc.embedFont(readFileSync(DEJAVU_BOLD_PATH));
 
   page.drawRectangle({
     x,

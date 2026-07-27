@@ -33,6 +33,11 @@ export interface LmsCourseSummary {
   lessons: { id: string; title: string; order: number }[];
   collaborators: LmsCourseCollaboratorDto[];
   rubric?: LmsRubricDto | null;
+  // Setări de curs (tab "Setări" din editor) — vezi comentariile din schema.prisma
+  // (model LmsCourse) pentru ce controlează fiecare comutator.
+  allowLearnerComments: boolean;
+  requireQuizToAdvance: boolean;
+  issueCertificate: boolean;
 }
 
 export async function fetchCourses(): Promise<LmsCourseSummary[]> {
@@ -50,7 +55,17 @@ export async function fetchCourse(id: string): Promise<LmsCourseSummary> {
   return data;
 }
 
-export async function updateCourse(id: string, input: Partial<{ title: string; description: string; status: LmsCourseStatus }>): Promise<LmsCourseSummary> {
+export async function updateCourse(
+  id: string,
+  input: Partial<{
+    title: string;
+    description: string;
+    status: LmsCourseStatus;
+    allowLearnerComments: boolean;
+    requireQuizToAdvance: boolean;
+    issueCertificate: boolean;
+  }>
+): Promise<LmsCourseSummary> {
   const { data } = await api.patch(`/api/lms/courses/${id}`, input);
   return data;
 }
@@ -141,6 +156,28 @@ export async function rewriteText(text: string, instruction: "REWRITE" | "ADAPT"
   return data.result as string;
 }
 
+export interface LmsMediaUploadResult {
+  id: string;
+  url: string;
+  filename: string;
+  mimeType: string;
+}
+
+export async function uploadLmsMedia(file: File): Promise<LmsMediaUploadResult> {
+  const form = new FormData();
+  form.append("file", file);
+  const { data } = await api.post("/api/lms/media", form);
+  return data;
+}
+
+// Fișierul e servit public (fără auth — vezi media.routes.ts), deci trebuie adresat cu
+// URL absolut către backend, la fel ca artifactPhotoUrl din features/museum/api.ts —
+// un <img>/<video src> nu poate trimite header-ul Authorization pe care se bazează `api`.
+export function lmsMediaUrl(id: string): string {
+  const base = (import.meta as any).env?.VITE_API_URL || "http://localhost:4000";
+  return `${base}/api/lms/media/${id}/file`;
+}
+
 // --- Colaborare ---
 
 export async function addCollaborator(courseId: string, userId: string, courseRole: LmsCourseRole = "COAUTHOR"): Promise<LmsCourseCollaboratorDto> {
@@ -152,13 +189,23 @@ export async function removeCollaborator(courseId: string, userId: string) {
   await api.delete(`/api/lms/courses/${courseId}/collaborators/${userId}`);
 }
 
+export type LmsCommentStatus = "OPEN" | "RESOLVED" | "REJECTED";
+
 export interface LmsCommentDto {
   id: string;
   lessonId: string;
   blockId: string;
   authorId: string;
+  author?: { id: string; name?: string; email: string };
   body: string;
-  resolved: boolean;
+  // Fragmentul exact selectat (text sau enunțul unei întrebări) la care se referă
+  // comentariul — comentariu "ca la Word", ancorat la o secvență precisă, nu la tot blocul.
+  quote?: string;
+  status: LmsCommentStatus;
+  parentId?: string;
+  // Doar pe comentariile de nivel superior — răspunsurile (parentId setat) nu au propriul
+  // `replies`, ca să nu se ramifice la infinit (un singur nivel de fir de discuție).
+  replies?: LmsCommentDto[];
   createdAt: string;
 }
 
@@ -167,13 +214,18 @@ export async function fetchComments(lessonId: string): Promise<LmsCommentDto[]> 
   return data;
 }
 
-export async function addComment(lessonId: string, blockId: string, body: string): Promise<LmsCommentDto> {
-  const { data } = await api.post(`/api/lms/lessons/${lessonId}/comments`, { blockId, body });
+export async function addComment(lessonId: string, blockId: string, body: string, quote?: string): Promise<LmsCommentDto> {
+  const { data } = await api.post(`/api/lms/lessons/${lessonId}/comments`, { blockId, body, quote });
   return data;
 }
 
-export async function resolveComment(id: string): Promise<LmsCommentDto> {
-  const { data } = await api.patch(`/api/lms/comments/${id}/resolve`);
+export async function replyToComment(commentId: string, body: string): Promise<LmsCommentDto> {
+  const { data } = await api.post(`/api/lms/comments/${commentId}/replies`, { body });
+  return data;
+}
+
+export async function updateCommentStatus(id: string, status: LmsCommentStatus): Promise<LmsCommentDto> {
+  const { data } = await api.patch(`/api/lms/comments/${id}/status`, { status });
   return data;
 }
 

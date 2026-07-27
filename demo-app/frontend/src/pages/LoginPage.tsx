@@ -155,7 +155,10 @@ export default function LoginPage() {
             <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required style={{ width: "100%" }} />
           </div>
           <div style={{ marginBottom: 14 }}>
-            <FieldLabel>Parolă</FieldLabel>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+              <FieldLabel>Parolă</FieldLabel>
+              <Link to="/forgot-password" style={{ fontSize: 12.5 }}>Ai uitat parola?</Link>
+            </div>
             <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required style={{ width: "100%" }} />
           </div>
           {needsTwoFactor && twoFactorMethods.includes("totp") && (

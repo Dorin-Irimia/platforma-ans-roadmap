@@ -58,6 +58,10 @@ export interface FormDef {
   completeness: ServiceCompleteness;
   // Dacă true, formularul nu apare pe /portal pentru un vizitator neautentificat (R38).
   requiresAuth: boolean;
+  // Dacă true, la depunere se generează automat un PDF cu datele completate, atașat
+  // cererii — vizibil/descărcabil de petent din "Cererile mele" și de personal din
+  // Registratură.
+  generatesSubmissionPdf: boolean;
   // Secțiunea de catalog public (4.5.1 R37) — null pentru șabloanele non-publice.
   portalSection?: PortalSection | null;
   sections: FormSectionDef[];
@@ -77,6 +81,7 @@ export interface FormPayload {
   descriptionEn?: string;
   completeness?: ServiceCompleteness;
   requiresAuth?: boolean;
+  generatesSubmissionPdf?: boolean;
   portalSection?: PortalSection | null;
   sections: FormSectionDef[];
   otherFields: FormFieldDef[];
@@ -159,7 +164,7 @@ export interface MyRequestDetail {
   form?: { name: string; title?: string };
   workflowCase?: { currentState: WorkflowStateDto } | null;
   responses: { id: string; body: string; outboundNumber?: string; status: string; createdAt: string; document?: DocumentDto }[];
-  documents: { id: string; filename: string; mimeType: string; sizeBytes: number; createdAt: string }[];
+  documents: { id: string; kind: "ATTACHMENT" | "SUBMISSION_PDF"; filename: string; mimeType: string; sizeBytes: number; createdAt: string }[];
 }
 
 export async function fetchMyRequestDetail(id: string): Promise<MyRequestDetail> {
@@ -461,7 +466,7 @@ export async function advanceWorkflowCase(requestId: string, payload: { transiti
 
 export interface DocumentDto {
   id: string;
-  kind: "ATTACHMENT" | "GENERATED_RESPONSE" | "SIGNED_RESPONSE";
+  kind: "ATTACHMENT" | "GENERATED_RESPONSE" | "SIGNED_RESPONSE" | "SUBMISSION_PDF";
   filename: string;
   mimeType: string;
   sizeBytes: number;

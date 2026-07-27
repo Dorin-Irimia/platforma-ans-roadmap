@@ -80,21 +80,24 @@ function AttachmentsCard({ request, onChange }: { request: DmsRequestDetail; onC
         {request.documents.map((doc) => (
           <div key={doc.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", background: T.line2, borderRadius: 8 }}>
             <div style={{ fontSize: 13 }}>
+              {doc.kind === "SUBMISSION_PDF" && <Pill color={T.brand} bg={T.brandTint} style={{ marginRight: 8 }}>Cerere depusă</Pill>}
               <span style={{ fontWeight: 600 }}>{doc.filename}</span>
               <span style={{ color: T.ink3 }}> · {formatBytes(doc.sizeBytes)}{doc.pageCount ? ` · ${doc.pageCount} pag.` : ""}</span>
             </div>
             <div style={{ display: "flex", gap: 8 }}>
               <Button variant="ghost" style={{ padding: "5px 10px", fontSize: 12 }} onClick={() => openDocument(doc)}>Deschide</Button>
-              <Button
-                variant="danger"
-                style={{ padding: "5px 10px", fontSize: 12 }}
-                onClick={async () => {
-                  await deleteAttachment(doc.id);
-                  onChange();
-                }}
-              >
-                Șterge
-              </Button>
+              {doc.kind === "ATTACHMENT" && (
+                <Button
+                  variant="danger"
+                  style={{ padding: "5px 10px", fontSize: 12 }}
+                  onClick={async () => {
+                    await deleteAttachment(doc.id);
+                    onChange();
+                  }}
+                >
+                  Șterge
+                </Button>
+              )}
             </div>
           </div>
         ))}

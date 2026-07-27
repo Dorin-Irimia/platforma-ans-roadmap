@@ -65,6 +65,7 @@ model User {
   lmsCourseCollaborations LmsCourseCollaborator[]
   lmsEnrollments      LmsEnrollment[]
   lmsCertificates     LmsCertificate[]
+  lmsComments         LmsComment[]
   yearbookEditions    SportsYearbookEdition[]
   emailOtpFactor      EmailOtpFactor?
   // Legătură inversă opțională către entitatea de domeniu asociată unui cont de
@@ -620,6 +621,10 @@ model Form {
   // Dacă true, formularul nu apare deloc pe /portal pentru un vizitator neautentificat
   // (4.5.1 R38) — în loc de fallback-ul implicit nume+email.
   requiresAuth Boolean          @default(false)
+  // Dacă true, la depunere se generează automat un PDF cu datele completate, atașat
+  // cererii (Document.kind = SUBMISSION_PDF) — vizibil și descărcabil de petent din
+  // "Cererile mele" și de personal din Registratură, configurabil per șablon.
+  generatesSubmissionPdf Boolean @default(false)
   // Secțiunea de catalog public (4.5.1 R37) — null pentru șabloanele care nu sunt
   // formulare publice (INTERNAL_DOCUMENT/EXTERNAL_DOCUMENT).
   portalSection PortalSection?
@@ -825,6 +830,7 @@ enum DocumentKind {
   ATTACHMENT // fișier încărcat de petent/personal la o cerere
   GENERATED_RESPONSE // PDF generat automat din template, înainte de semnare
   SIGNED_RESPONSE // PDF cu semnătura electronică ștampilată la coordonatele alese
+  SUBMISSION_PDF // PDF generat automat din datele depuse ale unei cereri (dacă Form.generatesSubmissionPdf)
 }
 
 // Fișier fizic (stocat pe disc, cf. modelului DMS: depozit centralizat + indexare metadate).
@@ -1064,11 +1070,23 @@ model LmsCourse {
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
 
+  // Politici de curs configurabile din editor (tab "Setări"):
+  // - allowLearnerComments: cursanții pot adăuga comentarii pe lecțiile pe care le-au
+  //   deblocat deja — vizibile doar lor și colaboratorilor cursului, nu și altor cursanți.
+  // - requireQuizToAdvance: dacă e false, Bariera Logică (computeLessonLocks) e complet
+  //   dezactivată pentru acest curs — cursantul poate avansa fără să fi promovat testele.
+  // - issueCertificate: dacă e false, nu se mai emite niciun certificat la finalizarea
+  //   cursului (100% progres), indiferent de rezultatele la teste.
+  allowLearnerComments Boolean @default(false)
+  requireQuizToAdvance Boolean @default(true)
+  issueCertificate     Boolean @default(true)
+
   lessons       LmsLesson[]
   collaborators LmsCourseCollaborator[]
   enrollments   LmsEnrollment[]
   certificates  LmsCertificate[]
   rubric        LmsRubric?
+  intents       LmsIntent[]
 }
 
 // Conținutul lecției e o listă ordonată de blocuri (TEXT/IMAGE/VIDEO/QUIZ) stocată ca
@@ -1086,6 +1104,7 @@ model LmsLesson {
 
   comments LmsComment[]
   attempts LmsQuizAttempt[]
+  rubricScores LmsRubricScore[]
 
   @@index([courseId])
 }
@@ -1109,19 +1128,36 @@ model LmsCourseCollaborator {
   @@unique([courseId, userId])
 }
 
+enum LmsCommentStatus {
+  OPEN
+  RESOLVED
+  REJECTED
+}
+
 // `blockId` e o cheie în `LmsLesson.content` (JSON), fără FK — dacă blocul e șters/
 // reordonat, comentariul poate rămâne orfan (acceptabil pt. demo, documentat explicit).
 model LmsComment {
-  id        String    @id @default(uuid())
+  id        String           @id @default(uuid())
   lessonId  String
-  lesson    LmsLesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  lesson    LmsLesson        @relation(fields: [lessonId], references: [id], onDelete: Cascade)
   blockId   String
   authorId  String
+  author    User             @relation(fields: [authorId], references: [id], onDelete: Cascade)
   body      String
-  resolved  Boolean   @default(false)
-  createdAt DateTime  @default(now())
+  // Fragmentul exact selectat de utilizator (text din TEXT, sau enunțul întrebării dintr-un
+  // QUIZ) — comentariu "ca la Word", ancorat la o secvență precisă, nu doar la tot blocul.
+  // Opțional: comentariile pe blocuri fără selecție de text (IMAGE/VIDEO) rămân fără quote.
+  quote     String?
+  status    LmsCommentStatus @default(OPEN)
+  // Răspuns la un alt comentariu (fir de discuție, ca la Word) — un răspuns moștenește
+  // blockId/quote de la comentariul-părinte (vezi ruta /comments/:id/replies).
+  parentId  String?
+  parent    LmsComment?      @relation("LmsCommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies   LmsComment[]     @relation("LmsCommentReplies")
+  createdAt DateTime         @default(now())
 
   @@index([lessonId])
+  @@index([parentId])
 }
 
 model LmsRubric {
@@ -1134,6 +1170,7 @@ model LmsRubric {
 model LmsRubricScore {
   id          String   @id @default(uuid())
   lessonId    String
+  lesson      LmsLesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
   evaluatorId String
   scores      Json // [{label, score}]
   createdAt   DateTime @default(now())
@@ -1195,6 +1232,7 @@ model LmsQuizAttempt {
 model LmsIntent {
   id             String   @id @default(uuid())
   courseId       String
+  course         LmsCourse @relation(fields: [courseId], references: [id], onDelete: Cascade)
   name           String
   triggerPhrases String[]
   responseMode   String // "CANNED" | "AI"

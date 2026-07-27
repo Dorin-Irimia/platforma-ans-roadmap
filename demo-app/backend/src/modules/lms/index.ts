@@ -7,6 +7,7 @@ import { lmsEnrollmentRouter } from "./enrollment.routes";
 import { lmsQuizRouter } from "./quiz.routes";
 import { lmsAssistantRouter } from "./assistant.routes";
 import { lmsTtsRouter } from "./tts.routes";
+import { lmsMediaRouter } from "./media.routes";
 
 export const lmsRouter = Router();
 
@@ -18,3 +19,4 @@ lmsRouter.use(lmsEnrollmentRouter);
 lmsRouter.use(lmsQuizRouter);
 lmsRouter.use(lmsAssistantRouter);
 lmsRouter.use(lmsTtsRouter);
+lmsRouter.use(lmsMediaRouter);

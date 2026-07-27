@@ -125,7 +125,9 @@ documentsRouter.get("/documents/:id/file", requireAuth, async (req: AuthedReques
   if (!doc) return res.status(404).json({ error: "Document inexistent" });
 
   const isStaff = (STAFF_ROLES as readonly string[]).includes(req.user!.role);
-  const isOwner = doc.request?.submitterId === req.user!.id && (doc.kind === "ATTACHMENT" || doc.kind === "SIGNED_RESPONSE");
+  const isOwner =
+    doc.request?.submitterId === req.user!.id &&
+    (doc.kind === "ATTACHMENT" || doc.kind === "SIGNED_RESPONSE" || doc.kind === "SUBMISSION_PDF");
   if (!isStaff && !isOwner) return res.status(403).json({ error: "Acces interzis" });
 
   const raw = readFile(doc.storagePath);

@@ -4,6 +4,7 @@ import { prisma } from "../../shared/prisma";
 import { requireAuth, AuthedRequest } from "../iam/rbac.middleware";
 import { newStoragePath, writeFile, readFile } from "../../shared/storage";
 import { generateCertificatePdf } from "./certificatePdf";
+import { hasPassedAllQuizzes } from "./lessons.routes";
 
 export const lmsEnrollmentRouter = Router();
 
@@ -45,11 +46,15 @@ lmsEnrollmentRouter.patch("/courses/:id/enrollment/progress", requireAuth, async
     const already = await prisma.lmsCertificate.findUnique({
       where: { courseId_userId: { courseId: req.params.id, userId: req.user!.id } },
     });
-    if (!already) {
-      const [course, user] = await Promise.all([
-        prisma.lmsCourse.findUniqueOrThrow({ where: { id: req.params.id } }),
-        prisma.user.findUniqueOrThrow({ where: { id: req.user!.id } }),
-      ]);
+    const [course, user] = await Promise.all([
+      prisma.lmsCourse.findUniqueOrThrow({ where: { id: req.params.id } }),
+      prisma.user.findUniqueOrThrow({ where: { id: req.user!.id } }),
+    ]);
+    // Certificatul se emite doar dacă (a) cursul chiar are activată generarea de
+    // certificate, ȘI (b) cursantul a promovat FIECARE test din curs — indiferent de
+    // `requireQuizToAdvance`, care gate-uiește doar navigarea între lecții, nu certificatul.
+    const eligible = course.issueCertificate && (await hasPassedAllQuizzes(req.params.id, req.user!.id));
+    if (!already && eligible) {
       const year = new Date().getFullYear();
       const countThisYear = await prisma.lmsCertificate.count({ where: { issuedAt: { gte: new Date(`${year}-01-01`) } } });
       const certificateNumber = `CERT-${year}-${String(countThisYear + 1).padStart(4, "0")}`;

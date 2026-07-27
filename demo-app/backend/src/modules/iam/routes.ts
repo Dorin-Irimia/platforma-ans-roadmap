@@ -96,6 +96,37 @@ iamRouter.post("/register", async (req, res) => {
   });
 });
 
+// Recuperare parolă — trimite un link Supabase de tip "recovery" pe emailul contului.
+// Linkul deschide /reset-password în frontend, unde ResetPasswordPage.tsx stabilește
+// sesiunea automat din fragmentul URL (detectSessionInUrl) și apelează direct
+// `supabase.auth.updateUser({ password })`, exact ca la AcceptInvitePage.tsx.
+const passwordResetRequestSchema = z.object({ email: z.string().email() });
+
+iamRouter.post("/password-reset/request", async (req, res) => {
+  const parsed = passwordResetRequestSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+  const { email } = parsed.data;
+
+  // Răspuns identic indiferent dacă emailul există sau nu în platformă — altfel am
+  // scurge, prin diferența de răspuns, care adrese sunt conturi înregistrate.
+  const genericResponse = { message: "Dacă adresa este înregistrată, vei primi un email cu instrucțiuni de resetare." };
+
+  const user = await prisma.user.findUnique({ where: { email } });
+  if (!user) return res.json(genericResponse);
+
+  const { error } = await supabaseAnon.auth.resetPasswordForEmail(email, {
+    redirectTo: `${process.env.FRONTEND_URL}/reset-password`,
+  });
+  if (error) {
+    // Nu expunem eroarea reală către client (ar putea confirma existența contului) —
+    // o logăm doar intern, pentru diagnostic.
+    await logAction({ action: "PASSWORD_RESET_REQUEST_FAILED", resource: `user:${user.id}`, metadata: { error: error.message }, success: false });
+  } else {
+    await logAction({ userId: user.id, action: "PASSWORD_RESET_REQUESTED", resource: `user:${user.id}` });
+  }
+  res.json(genericResponse);
+});
+
 const loginSchema = z.object({
   email: z.string().email(),
   password: z.string(),

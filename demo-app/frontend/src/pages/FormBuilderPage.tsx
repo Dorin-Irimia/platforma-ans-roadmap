@@ -88,6 +88,7 @@ function emptyForm(): FormPayload {
     descriptionEn: "",
     completeness: "COMPLETE",
     requiresAuth: false,
+    generatesSubmissionPdf: false,
     portalSection: null,
     description: "",
     sections: [],
@@ -580,6 +581,7 @@ export default function FormBuilderPage() {
       descriptionEn: form.descriptionEn || "",
       completeness: form.completeness,
       requiresAuth: form.requiresAuth,
+      generatesSubmissionPdf: form.generatesSubmissionPdf,
       portalSection: form.portalSection,
       sections: form.sections.map((s) => ({ ...s })),
       otherFields: form.fields,
@@ -724,7 +726,7 @@ export default function FormBuilderPage() {
         {editing.templateType === "REQUEST_FORM" && (
           <Card id="form-builder-portal-config-card" style={{ marginBottom: 20 }}>
             <SectionHeader title="Configurare Portal" />
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14, marginBottom: 14 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 14, marginBottom: 14 }}>
               <div>
                 <FieldLabel>Secțiune catalog public</FieldLabel>
                 <select value={editing.portalSection || ""} onChange={(e) => setEditing({ ...editing, portalSection: (e.target.value || null) as any })} style={{ width: "100%" }}>
@@ -747,6 +749,18 @@ export default function FormBuilderPage() {
                 <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, marginTop: 8 }}>
                   <input type="checkbox" checked={!!editing.requiresAuth} onChange={(e) => setEditing({ ...editing, requiresAuth: e.target.checked })} />
                   Necesită autentificare (invizibil pentru vizitatori anonimi)
+                </label>
+              </div>
+              <div>
+                <FieldLabel>Document depunere</FieldLabel>
+                <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, marginTop: 8 }}>
+                  <input
+                    id="form-builder-generates-pdf-checkbox"
+                    type="checkbox"
+                    checked={!!editing.generatesSubmissionPdf}
+                    onChange={(e) => setEditing({ ...editing, generatesSubmissionPdf: e.target.checked })}
+                  />
+                  Generează PDF la depunere (vizibil în Registratură și în "Cererile mele")
                 </label>
               </div>
             </div>

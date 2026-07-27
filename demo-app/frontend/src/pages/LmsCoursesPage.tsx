@@ -9,7 +9,17 @@ import { useAuth } from "../features/iam/AuthContext";
 import { fetchCourses, createCourse, LmsCourseSummary } from "../features/lms/api";
 
 const CREATOR_ROLES = ["SUPER_ADMIN", "ADMIN_INSTITUTIE", "AUTOR", "CNFPA"];
-const EDITOR_VIEW_ROLES = ["SUPER_ADMIN", "ADMIN_INSTITUTIE", "AUTOR", "CO_AUTOR", "EVALUATOR", "CNFPA"];
+// Acces necondiționat de editor la ORICE curs (platformă/evaluare) — restul utilizatorilor
+// ajung în editor doar pe cursurile unde chiar sunt autor/colaborator (vezi canEditCourse
+// mai jos), nu pe baza rolului global — invitarea ca Co-autor nu schimbă rolul global.
+const PLATFORM_EDITOR_ROLES = ["SUPER_ADMIN", "ADMIN_INSTITUTIE", "EVALUATOR"];
+
+function canEditCourse(course: LmsCourseSummary, userId?: string, userRole?: string): boolean {
+  if (!userId) return false;
+  if (PLATFORM_EDITOR_ROLES.includes(userRole || "")) return true;
+  if (course.authorId === userId) return true;
+  return course.collaborators.some((c) => c.userId === userId);
+}
 
 function CreateCourseModal({ onClose, onCreated }: { onClose: () => void; onCreated: (c: LmsCourseSummary) => void }) {
   const [title, setTitle] = useState("");
@@ -58,7 +68,6 @@ export default function LmsCoursesPage() {
   const [courses, setCourses] = useState<LmsCourseSummary[]>([]);
   const [showCreate, setShowCreate] = useState(false);
   const canCreate = user && CREATOR_ROLES.includes(user.role);
-  const goToEditor = user && EDITOR_VIEW_ROLES.includes(user.role);
 
   function load() {
     fetchCourses().then(setCourses).catch(() => setCourses([]));
@@ -81,7 +90,7 @@ export default function LmsCoursesPage() {
             key={c.id}
             id={cIdx === 0 ? "lms-first-course-card" : undefined}
             style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }}
-            onClick={() => navigate(goToEditor ? `/lms/courses/${c.id}` : `/lms/courses/${c.id}/learn`)}
+            onClick={() => navigate(canEditCourse(c, user?.id, user?.role) ? `/lms/courses/${c.id}` : `/lms/courses/${c.id}/learn`)}
           >
             <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
               <div style={{ width: 40, height: 40, borderRadius: 10, background: T.brandTint, display: "flex", alignItems: "center", justifyContent: "center", color: T.brand }}>

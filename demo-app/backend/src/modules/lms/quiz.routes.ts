@@ -41,7 +41,8 @@ lmsQuizRouter.post("/lessons/:id/quiz-attempt", requireAuth, async (req: AuthedR
   // Enforcement server-side al Barierei Logice (pct. 15): o încercare pe o lecție încă
   // blocată e respinsă, indiferent de ce arată UI-ul clientului.
   const courseLessons = await prisma.lmsLesson.findMany({ where: { courseId: lesson.courseId }, orderBy: { order: "asc" } });
-  const locks = await computeLessonLocks(courseLessons, req.user!.id);
+  const course = await prisma.lmsCourse.findUnique({ where: { id: lesson.courseId }, select: { requireQuizToAdvance: true } });
+  const locks = await computeLessonLocks(courseLessons, req.user!.id, course?.requireQuizToAdvance ?? true);
   if (locks.get(lesson.id)) return res.status(403).json({ error: "Lecția este blocată — finalizează lecția anterioară" });
 
   const parsed = attemptSchema.safeParse(req.body);

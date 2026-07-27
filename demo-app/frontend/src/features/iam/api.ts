@@ -31,6 +31,13 @@ export async function register(email: string, password: string, name?: string) {
   return data as { id: string; email: string; role: string; pendingApproval: boolean };
 }
 
+// Trimite un link Supabase de recuperare parolă pe email — vezi ForgotPasswordPage.tsx
+// (cere linkul) și ResetPasswordPage.tsx (setează parola nouă, după click pe link).
+export async function requestPasswordReset(email: string) {
+  const { data } = await api.post("/api/iam/password-reset/request", { email });
+  return data as { message: string };
+}
+
 export interface Me {
   id: string;
   email: string;

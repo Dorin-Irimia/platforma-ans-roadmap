@@ -2,6 +2,19 @@ import DOMPurify from "dompurify";
 import { T } from "../../theme";
 import { LessonBlock, correctIndexesOf } from "../../features/lms/api";
 
+// URL-urile video reale, în practică, aproape niciodată nu sunt fișiere media directe
+// (.mp4 etc.) — sunt linkuri către YouTube/Vimeo. Un <video src="..."> nu poate reda o
+// pagină YouTube (nu e un fișier media, ci un document HTML) — rezultatul e un player gol,
+// blocat la 0:00, exact ce a raportat un cursant. Detectăm aceste linkuri și le randăm
+// într-un <iframe> către URL-ul de embed corespunzător; orice alt URL rămâne <video> normal.
+export function toEmbeddableVideo(url: string): { kind: "iframe" | "video"; src: string } {
+  const yt = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([\w-]{11})/);
+  if (yt) return { kind: "iframe", src: `https://www.youtube.com/embed/${yt[1]}` };
+  const vimeo = url.match(/vimeo\.com\/(?:video\/)?(\d+)/);
+  if (vimeo) return { kind: "iframe", src: `https://player.vimeo.com/video/${vimeo[1]}` };
+  return { kind: "video", src: url };
+}
+
 // Randare read-only a blocurilor unei lecții — folosită atât în previzualizarea din
 // editor (fără interacțiune), cât și ca bază vizuală pentru player (care adaugă
 // interactivitate doar peste blocul QUIZ, vezi QuizPlayer.tsx).
@@ -30,9 +43,21 @@ export function LessonBlocksView({ blocks }: { blocks: LessonBlock[] }) {
           );
         }
         if (block.type === "VIDEO") {
+          const embed = toEmbeddableVideo(block.url);
           return (
             <figure key={block.id} style={{ margin: 0 }}>
-              <video src={block.url} controls style={{ maxWidth: "100%", borderRadius: 12 }} />
+              {embed.kind === "iframe" ? (
+                <div style={{ position: "relative", paddingTop: "56.25%", borderRadius: 12, overflow: "hidden" }}>
+                  <iframe
+                    src={embed.src}
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                    style={{ position: "absolute", inset: 0, width: "100%", height: "100%", border: "none" }}
+                  />
+                </div>
+              ) : (
+                <video src={embed.src} controls style={{ maxWidth: "100%", borderRadius: 12 }} />
+              )}
               {block.caption && <figcaption style={{ fontSize: 12, color: T.ink3, marginTop: 6 }}>{block.caption}</figcaption>}
             </figure>
           );

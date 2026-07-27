@@ -14,12 +14,16 @@ import {
   fetchMyCertificates,
   downloadCertificate,
   downloadLessonAudio,
+  fetchComments,
+  addComment,
   LmsCourseSummary,
   LmsLessonDto,
   LessonAccessDto,
   LmsCertificateDto,
+  LmsCommentDto,
 } from "../features/lms/api";
 import { LessonBlocksView } from "../components/lms/LessonBlocksView";
+import { CommentableLessonView } from "../components/lms/CommentableLessonView";
 import { QuizPlayer } from "../components/lms/QuizPlayer";
 import { isSpeechRecognitionSupported, startSpeechRecognition, isSpeechSynthesisSupported, speakText, stopSpeech } from "../features/chatbot/speech";
 
@@ -37,6 +41,7 @@ export default function LmsCoursePlayerPage() {
   const [certificate, setCertificate] = useState<LmsCertificateDto | null>(null);
   const [downloadingAudio, setDownloadingAudio] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [comments, setComments] = useState<LmsCommentDto[]>([]);
 
   function handleToggleSpeech(text: string) {
     if (isSpeaking) {
@@ -68,6 +73,19 @@ export default function LmsCoursePlayerPage() {
       .catch(() => setCertificate(null));
   }
 
+  // Comentariile cursantului (dacă cursul permite) — serverul filtrează deja: un cursant
+  // își vede DOAR propriile comentarii + răspunsurile primite la ele, niciodată
+  // comentariile altor cursanți.
+  function loadComments(lessonId: string) {
+    fetchComments(lessonId).then(setComments).catch(() => setComments([]));
+  }
+
+  async function handleAddComment(blockId: string, body: string, quote?: string) {
+    if (!activeId) return;
+    await addComment(activeId, blockId, body, quote);
+    loadComments(activeId);
+  }
+
   useEffect(() => {
     if (!id) return;
     fetchCourse(id).then(setCourse).catch(() => setCourse(null));
@@ -84,6 +102,11 @@ export default function LmsCoursePlayerPage() {
   useEffect(() => {
     if (!activeId && lessons.length > 0) setActiveId(lessons[0].id);
   }, [lessons]);
+
+  useEffect(() => {
+    if (activeId && course?.allowLearnerComments) loadComments(activeId);
+    else setComments([]);
+  }, [activeId, course?.allowLearnerComments]);
 
   function isLocked(lessonId: string): boolean {
     return access.find((a) => a.lessonId === lessonId)?.locked ?? false;
@@ -175,12 +198,55 @@ export default function LmsCoursePlayerPage() {
           <div id="lms-player-lesson-content">
             <Card style={{ marginBottom: 20 }}>
               <h2 style={{ marginTop: 0 }}>{activeLesson.title}</h2>
-              <LessonBlocksView blocks={nonQuizBlocks} />
+              {course.allowLearnerComments && !isLocked(activeLesson.id) ? (
+                <CommentableLessonView blocks={nonQuizBlocks} comments={comments} onAddComment={handleAddComment} />
+              ) : (
+                <LessonBlocksView blocks={nonQuizBlocks} />
+              )}
               {quizBlock && (
                 <div style={{ marginTop: 18 }}>
                   <QuizPlayer lessonId={activeLesson.id} quiz={quizBlock} onSubmitted={loadAccess} />
                 </div>
               )}
+
+              {course.allowLearnerComments && comments.length > 0 && (
+                <div style={{ marginTop: 20 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase", color: T.ink3, marginBottom: 10 }}>
+                    Comentariile mele
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                    {comments.map((c) => (
+                      <div key={c.id} style={{ padding: 10, background: T.line2, borderRadius: 10 }}>
+                        <div style={{ fontSize: 11.5, color: T.ink3, marginBottom: 4 }}>
+                          {new Date(c.createdAt).toLocaleString("ro-RO")} ·{" "}
+                          <span style={{ fontWeight: 700, color: c.status === "OPEN" ? T.warn : c.status === "RESOLVED" ? T.success : T.danger }}>
+                            {c.status === "OPEN" ? "Deschis" : c.status === "RESOLVED" ? "Rezolvat" : "Respins"}
+                          </span>
+                        </div>
+                        {c.quote && (
+                          <div style={{ fontSize: 12, fontStyle: "italic", color: T.ink3, borderLeft: `3px solid ${T.brand}`, paddingLeft: 8, marginBottom: 6 }}>
+                            „{c.quote}”
+                          </div>
+                        )}
+                        <div style={{ fontSize: 13, color: T.ink }}>{c.body}</div>
+                        {c.replies && c.replies.length > 0 && (
+                          <div style={{ marginTop: 8, paddingLeft: 12, borderLeft: `2px solid ${T.line}`, display: "flex", flexDirection: "column", gap: 6 }}>
+                            {c.replies.map((r) => (
+                              <div key={r.id}>
+                                <div style={{ fontSize: 11, color: T.ink3 }}>
+                                  <strong style={{ color: T.ink2 }}>{r.author?.name || r.author?.email || "Formator"}</strong> · {new Date(r.createdAt).toLocaleString("ro-RO")}
+                                </div>
+                                <div style={{ fontSize: 12.5, color: T.ink }}>{r.body}</div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div style={{ display: "flex", justifyContent: "space-between", marginTop: 20 }}>
                 <Button variant="ghost" disabled={activeIdx <= 0} onClick={() => goToLesson(lessons[activeIdx - 1].id)} style={{ opacity: activeIdx <= 0 ? 0.5 : 1 }}>
                   ← Lecția anterioară

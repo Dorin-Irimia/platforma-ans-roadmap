@@ -5,7 +5,8 @@ import { requireAuth, optionalAuth, AuthedRequest } from "../iam/rbac.middleware
 import { logAction } from "../iam/audit.service";
 import { requireAdmin } from "./rbac";
 import { addBusinessDays, DEFAULT_LEGAL_DEADLINE_DAYS } from "./deadline";
-import { generateFormPdf } from "./pdf";
+import { generateFormPdf, generateSubmissionPdf } from "./pdf";
+import { newStoragePath, writeFile } from "../../shared/storage";
 import { issueRegistryNumber, getDefaultRegistry } from "./registryNumbering";
 import { DOCUMENT_PUBLIC_SELECT } from "./documents.routes";
 
@@ -98,6 +99,7 @@ const formSchema = z.object({
   descriptionEn: z.string().optional(),
   completeness: z.enum(["COMPLETE", "PARTIAL"]).default("COMPLETE"),
   requiresAuth: z.boolean().default(false),
+  generatesSubmissionPdf: z.boolean().default(false),
   portalSection: z.enum(["INFO", "DOCUMENTE", "PETITII", "AUDIENTE"]).nullable().optional(),
   sections: z.array(sectionSchema).default([]),
   otherFields: z.array(fieldSchema).default([]),
@@ -115,6 +117,7 @@ const updateFormSchema = z.object({
   descriptionEn: z.string().optional(),
   completeness: z.enum(["COMPLETE", "PARTIAL"]).optional(),
   requiresAuth: z.boolean().optional(),
+  generatesSubmissionPdf: z.boolean().optional(),
   portalSection: z.enum(["INFO", "DOCUMENTE", "PETITII", "AUDIENTE"]).nullable().optional(),
   sections: z.array(sectionSchema).optional(),
   otherFields: z.array(fieldSchema).optional(),
@@ -157,11 +160,11 @@ const formInclude = {
 formsRouter.post("/forms", requireAuth, requireAdmin(), async (req: AuthedRequest, res) => {
   const parsed = formSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
-  const { icon, name, description, category, templateType, title, subtitle, titleEn, descriptionEn, completeness, requiresAuth, portalSection, sections, otherFields } = parsed.data;
+  const { icon, name, description, category, templateType, title, subtitle, titleEn, descriptionEn, completeness, requiresAuth, generatesSubmissionPdf, portalSection, sections, otherFields } = parsed.data;
 
   const form = await prisma.$transaction(async (tx) => {
     const created = await tx.form.create({
-      data: { icon, name, description, category, templateType, title, subtitle, titleEn, descriptionEn, completeness, requiresAuth, portalSection },
+      data: { icon, name, description, category, templateType, title, subtitle, titleEn, descriptionEn, completeness, requiresAuth, generatesSubmissionPdf, portalSection },
     });
 
     for (const [sIdx, s] of sections.entries()) {
@@ -235,11 +238,11 @@ formsRouter.get("/forms/:id/pdf", requireAuth, requireAdmin(), async (req, res) 
 formsRouter.patch("/forms/:id", requireAuth, requireAdmin(), async (req: AuthedRequest, res) => {
   const parsed = updateFormSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
-  const { icon, name, description, category, templateType, title, subtitle, titleEn, descriptionEn, completeness, requiresAuth, portalSection, sections, otherFields } = parsed.data;
+  const { icon, name, description, category, templateType, title, subtitle, titleEn, descriptionEn, completeness, requiresAuth, generatesSubmissionPdf, portalSection, sections, otherFields } = parsed.data;
 
   await prisma.form.update({
     where: { id: req.params.id },
-    data: { icon, name, description, category, templateType, title, subtitle, titleEn, descriptionEn, completeness, requiresAuth, portalSection },
+    data: { icon, name, description, category, templateType, title, subtitle, titleEn, descriptionEn, completeness, requiresAuth, generatesSubmissionPdf, portalSection },
   });
 
   if (sections || otherFields) {
@@ -315,6 +318,15 @@ function fieldVisible(field: { conditions: unknown }, data: Record<string, unkno
   return conditions.every((c) => conditionSatisfied(c, data));
 }
 
+// Randare lizibilă a unei valori depuse în PDF-ul cererii (generateSubmissionPdf) —
+// array-uri (bife multiple) unite prin virgulă, boolean afișat Da/Nu, restul ca text simplu.
+function formatSubmittedValue(value: unknown): string {
+  if (value === undefined || value === null || value === "") return "";
+  if (Array.isArray(value)) return value.map(String).join(", ");
+  if (typeof value === "boolean") return value ? "Da" : "Nu";
+  return String(value);
+}
+
 // Depunere formular din Portal → creare automată "Cerere" în Back-Office (registratură),
 // cu mapare a câmpurilor, nr. de înregistrare automat și termen legal calculat (pct. 7-9).
 // Câmpurile din categoria "Sistem" (ex. Cont, Înregistrare) nu se validează ca input al
@@ -371,6 +383,46 @@ formsRouter.post("/portal/forms/:id/submit", optionalAuth, async (req: AuthedReq
     },
   });
 
+  // PDF cu datele depuse (configurabil per șablon, "Configurare Portal" → generatesSubmissionPdf)
+  // — nu blocăm depunerea dacă generarea eșuează, doar o logăm ca eșec izolat.
+  if (form.generatesSubmissionPdf) {
+    try {
+      const pdfBuffer = await generateSubmissionPdf({
+        institutionName: "Agenția Națională pentru Sport",
+        registryNumber,
+        date: new Date().toLocaleDateString("ro-RO"),
+        formTitle: form.title || form.name,
+        submitterName,
+        submitterEmail,
+        fields: allFields
+          .filter((f) => !SYSTEM_TYPES.has(f.type) && fieldVisible(f, data))
+          .map((f) => ({ label: f.label, value: formatSubmittedValue(data[f.key]) })),
+      });
+      const storagePath = newStoragePath("submission-pdfs", ".pdf");
+      writeFile(storagePath, pdfBuffer);
+      await prisma.document.create({
+        data: {
+          kind: "SUBMISSION_PDF",
+          requestId: request.id,
+          filename: `${registryNumber.replace(/\//g, "-")}-cerere.pdf`,
+          mimeType: "application/pdf",
+          sizeBytes: pdfBuffer.length,
+          storagePath,
+          pageCount: 1,
+          uploadedById: req.user?.id,
+        },
+      });
+    } catch (e: any) {
+      await logAction({
+        userId: req.user?.id,
+        action: "SUBMISSION_PDF_FAILED",
+        resource: `request:${request.id}`,
+        metadata: { error: e?.message },
+        success: false,
+      });
+    }
+  }
+
   await logAction({
     userId: req.user?.id,
     action: "REQUEST_REGISTERED",
@@ -424,7 +476,10 @@ formsRouter.get("/portal/my-requests/:id", requireAuth, async (req: AuthedReques
         include: { document: { select: DOCUMENT_PUBLIC_SELECT } },
         orderBy: { createdAt: "desc" },
       },
-      documents: { where: { kind: "ATTACHMENT" }, select: { id: true, filename: true, mimeType: true, sizeBytes: true, createdAt: true } },
+      documents: {
+        where: { kind: { in: ["ATTACHMENT", "SUBMISSION_PDF"] } },
+        select: { id: true, kind: true, filename: true, mimeType: true, sizeBytes: true, createdAt: true },
+      },
     },
   });
   if (!request) return res.status(404).json({ error: "Cerere inexistentă" });

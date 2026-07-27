@@ -1,5 +1,6 @@
 // Export PDF al unei ediții a Anuarului Sportului — aceeași tehnică PDFKit ca dms/pdf.ts.
 import PDFDocument from "pdfkit";
+import { registerPdfFonts, PDF_FONT, PDF_FONT_BOLD } from "../../shared/pdfFonts";
 
 interface YearbookSnapshot {
   year: number;
@@ -14,9 +15,9 @@ interface YearbookSnapshot {
 }
 
 function renderSection(doc: PDFKit.PDFDocument, title: string, rows: string[]) {
-  doc.font("Helvetica-Bold").fontSize(13).fillColor("#e85a0c").text(title.toUpperCase()).fillColor("#000");
+  doc.font(PDF_FONT_BOLD).fontSize(13).fillColor("#e85a0c").text(title.toUpperCase()).fillColor("#000");
   doc.moveDown(0.4);
-  doc.font("Helvetica").fontSize(10);
+  doc.font(PDF_FONT).fontSize(10);
   if (rows.length === 0) {
     doc.fillColor("#6A6F78").text("Fără date.").fillColor("#000");
   } else {
@@ -32,13 +33,14 @@ export function generateYearbookPdf(snapshot: YearbookSnapshot): Promise<Buffer>
     doc.on("data", (chunk) => chunks.push(chunk));
     doc.on("end", () => resolve(Buffer.concat(chunks)));
     doc.on("error", reject);
+    registerPdfFonts(doc);
 
     doc
-      .font("Helvetica-Bold")
+      .font(PDF_FONT_BOLD)
       .fontSize(20)
       .text("ANUARUL SPORTULUI", { align: "center" })
       .moveDown(0.2)
-      .font("Helvetica")
+      .font(PDF_FONT)
       .fontSize(12)
       .fillColor("#6A6F78")
       .text(`Ediția ${snapshot.year}`, { align: "center" })

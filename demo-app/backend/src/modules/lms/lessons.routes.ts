@@ -37,7 +37,16 @@ async function assertCourseAccess(courseId: string, user: { id: string; role: an
 
 lmsLessonsRouter.get("/courses/:courseId/lessons", requireAuth, async (req: AuthedRequest, res) => {
   const lessons = await prisma.lmsLesson.findMany({ where: { courseId: req.params.courseId }, orderBy: { order: "asc" } });
-  const locks = await computeLessonLocks(lessons, req.user!.id);
+  // Autorii/colaboratorii cursului (+ admin platformă) trebuie să vadă și să editeze
+  // conținutul complet al tuturor lecțiilor, indiferent de Bariera Logică — altfel editorul
+  // însuși se blochează de îndată ce o lecție are un test cu scor minim de deblocare (bug
+  // găsit în sesiune: un test adăugat într-o lecție bloca accesul la lecțiile următoare chiar
+  // și pentru autorul/SUPER_ADMIN-ul cursului). Bariera se aplică doar cursanților reali.
+  if (await assertCourseAccess(req.params.courseId, req.user!)) {
+    return res.json(lessons);
+  }
+  const course = await prisma.lmsCourse.findUnique({ where: { id: req.params.courseId }, select: { requireQuizToAdvance: true } });
+  const locks = await computeLessonLocks(lessons, req.user!.id, course?.requireQuizToAdvance ?? true);
   // Nu expunem conținutul (inclusiv răspunsurile corecte din QUIZ) al lecțiilor
   // încă blocate — enforcement server-side al Barierei Logice (pct. 15), nu doar UI.
   res.json(lessons.map((l) => (locks.get(l.id) ? { ...l, content: [] } : l)));
@@ -118,9 +127,15 @@ type LessonRow = { id: string; content: unknown };
 // quiz nu îl atinge (sau nu există nicio tentativă încă). Reutilizată atât de ruta de
 // listare (pentru a nu scurge conținutul lecțiilor blocate), cât și de ruta de acces
 // pentru UI, și de `quiz.routes.ts` pentru a respinge server-side o încercare pe o
-// lecție încă blocată.
-export async function computeLessonLocks(lessons: LessonRow[], userId: string): Promise<Map<string, boolean>> {
+// lecție încă blocată. `requireQuizToAdvance=false` (setare de curs) dezactivează complet
+// bariera — nicio lecție nu mai e considerată blocată, indiferent de scoruri.
+export async function computeLessonLocks(lessons: LessonRow[], userId: string, requireQuizToAdvance: boolean): Promise<Map<string, boolean>> {
   const locks = new Map<string, boolean>();
+
+  if (!requireQuizToAdvance) {
+    for (const lesson of lessons) locks.set(lesson.id, false);
+    return locks;
+  }
 
   for (let i = 0; i < lessons.length; i++) {
     if (i === 0) {
@@ -143,8 +158,26 @@ export async function computeLessonLocks(lessons: LessonRow[], userId: string): 
   return locks;
 }
 
+// Condiție de emitere a certificatului (pct. 15 + cerință nouă): cursantul trebuie să fi
+// promovat (scor >= prag) FIECARE test din curs care are un prag > 0 definit — indiferent
+// de `requireQuizToAdvance` (acel comutator gate-uiește doar navigarea, nu certificatul).
+export async function hasPassedAllQuizzes(courseId: string, userId: string): Promise<boolean> {
+  const lessons = await prisma.lmsLesson.findMany({ where: { courseId } });
+  for (const lesson of lessons) {
+    const quizBlock = findQuizBlock(lesson.content);
+    if (!quizBlock || quizBlock.requiredScoreToUnlockNext <= 0) continue;
+    const lastAttempt = await prisma.lmsQuizAttempt.findFirst({
+      where: { lessonId: lesson.id, userId },
+      orderBy: { createdAt: "desc" },
+    });
+    if (!lastAttempt || lastAttempt.score < quizBlock.requiredScoreToUnlockNext) return false;
+  }
+  return true;
+}
+
 lmsLessonsRouter.get("/courses/:courseId/lessons/access", requireAuth, async (req: AuthedRequest, res) => {
   const lessons = await prisma.lmsLesson.findMany({ where: { courseId: req.params.courseId }, orderBy: { order: "asc" } });
-  const locks = await computeLessonLocks(lessons, req.user!.id);
+  const course = await prisma.lmsCourse.findUnique({ where: { id: req.params.courseId }, select: { requireQuizToAdvance: true } });
+  const locks = await computeLessonLocks(lessons, req.user!.id, course?.requireQuizToAdvance ?? true);
   res.json(lessons.map((l) => ({ lessonId: l.id, locked: locks.get(l.id) ?? false })));
 });
