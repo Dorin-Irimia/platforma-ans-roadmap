@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Lock, Mic, Volume2, Square, Download, Send, Award } from "lucide-react";
+import { Lock, Mic, Volume2, Square, Download, Send, Award, Check } from "lucide-react";
 import { AppShell } from "../components/AppShell";
 import { Card, Button } from "../components/ui";
 import { T } from "../theme";
+import { useIsMobile } from "../lib/useMediaQuery";
 import {
   fetchCourse,
   fetchLessons,
@@ -30,6 +31,7 @@ import { isSpeechRecognitionSupported, startSpeechRecognition, isSpeechSynthesis
 export default function LmsCoursePlayerPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
   const [course, setCourse] = useState<LmsCourseSummary | null>(null);
   const [lessons, setLessons] = useState<LmsLessonDto[]>([]);
   const [access, setAccess] = useState<LessonAccessDto[]>([]);
@@ -122,6 +124,15 @@ export default function LmsCoursePlayerPage() {
     if (progressPercent >= 100) loadCertificate();
   }
 
+  // Marchează explicit cursul ca finalizat (100%, chiar dacă utilizatorul a ajuns direct
+  // pe ultima lecție fără să treacă prin goToLesson — ex. un curs cu o singură lecție) și
+  // se întoarce la lista de proiecte, de unde a pornit parcurgerea.
+  async function handleFinishCourse() {
+    if (!id || !activeLesson) return;
+    await updateProgress(id, { currentLessonId: activeLesson.id, progressPercent: 100 });
+    navigate("/lms");
+  }
+
   const activeLesson = lessons.find((l) => l.id === activeId) || null;
   const activeIdx = activeLesson ? lessons.findIndex((l) => l.id === activeLesson.id) : -1;
   const nonQuizBlocks = activeLesson ? activeLesson.content.filter((b) => b.type !== "QUIZ") : [];
@@ -160,37 +171,78 @@ export default function LmsCoursePlayerPage() {
           <Button onClick={() => downloadCertificate(certificate)}>Descarcă certificatul</Button>
         </Card>
       )}
-      <div style={{ display: "grid", gridTemplateColumns: "260px 1fr", gap: 20 }}>
-        <Card style={{ padding: 10, alignSelf: "start" }}>
-          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      <div style={isMobile ? { display: "flex", flexDirection: "column", gap: 14 } : { display: "grid", gridTemplateColumns: "260px 1fr", gap: 20 }}>
+        {isMobile ? (
+          // Pe mobil o listă verticală ar împinge conținutul lecției mult sub fold —
+          // navigare compactă tip "chips" derulabilă orizontal, ca la un curs mobil modern.
+          <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 2, WebkitOverflowScrolling: "touch" }}>
             {(() => {
               const firstLockedIdx = lessons.findIndex((l) => isLocked(l.id));
               return lessons.map((l, idx) => {
-                const locked = isLocked(l.id);
-                return (
-                  <div
-                    key={l.id}
-                    id={idx === firstLockedIdx ? "lms-player-locked-lesson" : undefined}
-                    onClick={() => goToLesson(l.id)}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      padding: "9px 10px",
-                      borderRadius: 8,
-                      cursor: locked ? "not-allowed" : "pointer",
-                      background: activeId === l.id ? T.brandTint : "transparent",
-                      opacity: locked ? 0.5 : 1,
-                    }}
-                  >
-                    <span style={{ fontSize: 13, fontWeight: activeId === l.id ? 700 : 500 }}>{l.title}</span>
-                    {locked && <Lock size={13} color={T.ink4} />}
-                  </div>
-                );
+              const locked = isLocked(l.id);
+              const active = activeId === l.id;
+              return (
+                <button
+                  key={l.id}
+                  id={idx === firstLockedIdx ? "lms-player-locked-lesson" : undefined}
+                  onClick={() => goToLesson(l.id)}
+                  disabled={locked}
+                  style={{
+                    flexShrink: 0,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    padding: "8px 14px",
+                    borderRadius: 999,
+                    border: `1px solid ${active ? T.brand : T.line}`,
+                    background: active ? T.brandTint : T.card,
+                    color: active ? T.brandDark : T.ink2,
+                    fontSize: 12.5,
+                    fontWeight: active ? 700 : 500,
+                    whiteSpace: "nowrap",
+                    cursor: locked ? "not-allowed" : "pointer",
+                    opacity: locked ? 0.55 : 1,
+                  }}
+                >
+                  {locked ? <Lock size={11} /> : active ? <Check size={11} /> : null}
+                  {l.title}
+                </button>
+              );
               });
             })()}
           </div>
-        </Card>
+        ) : (
+          <Card style={{ padding: 10, alignSelf: "start" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              {(() => {
+                const firstLockedIdx = lessons.findIndex((l) => isLocked(l.id));
+                return lessons.map((l, idx) => {
+                  const locked = isLocked(l.id);
+                  return (
+                    <div
+                      key={l.id}
+                      id={idx === firstLockedIdx ? "lms-player-locked-lesson" : undefined}
+                      onClick={() => goToLesson(l.id)}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        padding: "9px 10px",
+                        borderRadius: 8,
+                        cursor: locked ? "not-allowed" : "pointer",
+                        background: activeId === l.id ? T.brandTint : "transparent",
+                        opacity: locked ? 0.5 : 1,
+                      }}
+                    >
+                      <span style={{ fontSize: 13, fontWeight: activeId === l.id ? 700 : 500 }}>{l.title}</span>
+                      {locked && <Lock size={13} color={T.ink4} />}
+                    </div>
+                  );
+                });
+              })()}
+            </div>
+          </Card>
+        )}
 
         {!activeLesson ? (
           <Card><p style={{ color: T.ink3 }}>Acest curs nu are încă lecții.</p></Card>
@@ -251,14 +303,20 @@ export default function LmsCoursePlayerPage() {
                 <Button variant="ghost" disabled={activeIdx <= 0} onClick={() => goToLesson(lessons[activeIdx - 1].id)} style={{ opacity: activeIdx <= 0 ? 0.5 : 1 }}>
                   ← Lecția anterioară
                 </Button>
-                <Button
-                  variant="ghost"
-                  disabled={activeIdx >= lessons.length - 1 || isLocked(lessons[activeIdx + 1]?.id)}
-                  onClick={() => goToLesson(lessons[activeIdx + 1].id)}
-                  style={{ opacity: activeIdx >= lessons.length - 1 || isLocked(lessons[activeIdx + 1]?.id) ? 0.5 : 1 }}
-                >
-                  Lecția următoare →
-                </Button>
+                {activeIdx < lessons.length - 1 ? (
+                  <Button
+                    variant="ghost"
+                    disabled={isLocked(lessons[activeIdx + 1]?.id)}
+                    onClick={() => goToLesson(lessons[activeIdx + 1].id)}
+                    style={{ opacity: isLocked(lessons[activeIdx + 1]?.id) ? 0.5 : 1 }}
+                  >
+                    Lecția următoare →
+                  </Button>
+                ) : (
+                  <Button id="lms-player-finish-course-btn" onClick={handleFinishCourse} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <Check size={14} /> Finalizează cursul
+                  </Button>
+                )}
               </div>
             </Card>
 

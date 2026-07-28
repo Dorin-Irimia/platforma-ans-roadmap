@@ -2,10 +2,12 @@ import { useEffect, useRef, useState } from "react";
 import { Compass, Play } from "lucide-react";
 import { T, RADIUS, SHADOW } from "../theme";
 import { useTutorial } from "../features/tutorial/TutorialContext";
+import { useIsMobile } from "../lib/useMediaQuery";
 
 // Buton plutitor „Tur ghidat” — același tipar ca `AccessibilityMenu` (buton fix,
 // panou care se închide la click în afara lui), plasat lângă acesta fără suprapunere.
 export function TutorialLauncher() {
+  const isMobile = useIsMobile();
   const { availableTours, startTour } = useTutorial();
   const [open, setOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -24,7 +26,7 @@ export function TutorialLauncher() {
   }
 
   return (
-    <div ref={panelRef} style={{ position: "fixed", bottom: 24, right: 88, zIndex: 50 }}>
+    <div ref={panelRef} style={{ position: "fixed", bottom: isMobile ? 86 : 24, right: isMobile ? 72 : 88, zIndex: 50 }}>
       {open && (
         <div
           style={{

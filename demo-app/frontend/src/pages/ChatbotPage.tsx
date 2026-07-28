@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { useDropzone } from "react-dropzone";
-import { Mic, Send, Paperclip, Volume2, Square, FileText, Plus, Search, Trash2, Pencil, FileOutput, Smile, Frown, AlertCircle } from "lucide-react";
+import { Mic, Send, Paperclip, Volume2, Square, FileText, Plus, Search, Trash2, Pencil, FileOutput, Smile, Frown, AlertCircle, ArrowLeft } from "lucide-react";
 import { AppShell } from "../components/AppShell";
 import { Card, Button, FieldLabel, SectionHeader, Pill } from "../components/ui";
 import { Modal } from "../components/Modal";
 import { PdfPreview } from "../components/PdfPreview";
 import { T } from "../theme";
 import { useAuth } from "../features/iam/AuthContext";
+import { useIsMobile } from "../lib/useMediaQuery";
 import {
   fetchConversations,
   createConversation,
@@ -275,6 +276,7 @@ function GenerateDocumentModal({ conversationId, onClose, onGenerated }: { conve
 }
 
 function ConversationsTab({ isAdmin }: { isAdmin: boolean }) {
+  const isMobile = useIsMobile();
   const [conversations, setConversations] = useState<ChatConversationSummary[]>([]);
   const [search, setSearch] = useState("");
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -361,9 +363,22 @@ function ConversationsTab({ isAdmin }: { isAdmin: boolean }) {
     loadList();
   }
 
+  // Pe mobil nu încap ambele coloane deodată — comutăm la un tipar "listă → detaliu" (ca
+  // la orice aplicație de mesagerie mobilă): lista de conversații ocupă tot ecranul până
+  // se alege una, apoi conversația activă ocupă tot ecranul, cu buton de întoarcere la listă.
+  const showList = !isMobile || !activeId;
+  const showDetail = !isMobile || !!activeId;
+
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "280px 1fr", gap: 20, height: "calc(100vh - 260px)", minHeight: 480 }}>
-      <Card style={{ display: "flex", flexDirection: "column", padding: 12 }}>
+    <div
+      style={
+        isMobile
+          ? { display: "flex", flexDirection: "column", height: "calc(100vh - 220px)", minHeight: 420 }
+          : { display: "grid", gridTemplateColumns: "280px 1fr", gap: 20, height: "calc(100vh - 260px)", minHeight: 480 }
+      }
+    >
+      {showList && (
+      <Card style={{ display: "flex", flexDirection: "column", padding: 12, flex: isMobile ? 1 : undefined, minHeight: 0 }}>
         <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
           <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 6, background: T.line2, borderRadius: 10, padding: "6px 10px" }}>
             <Search size={13} color={T.ink3} />
@@ -429,8 +444,10 @@ function ConversationsTab({ isAdmin }: { isAdmin: boolean }) {
           {conversations.length === 0 && <p style={{ fontSize: 12.5, color: T.ink3, padding: 8 }}>Nicio conversație încă.</p>}
         </div>
       </Card>
+      )}
 
-      <Card style={{ display: "flex", flexDirection: "column", padding: 0, overflow: "hidden" }}>
+      {showDetail && (
+      <Card style={{ display: "flex", flexDirection: "column", padding: 0, overflow: "hidden", flex: isMobile ? 1 : undefined, minHeight: 0 }}>
         {!active ? (
           <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: T.ink3, fontSize: 13 }}>
             Alege o conversație sau creează una nouă.
@@ -438,8 +455,17 @@ function ConversationsTab({ isAdmin }: { isAdmin: boolean }) {
         ) : (
           <>
             <div style={{ padding: "14px 18px", borderBottom: `1px solid ${T.line}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <span style={{ fontWeight: 700, fontSize: 14 }}>{active.title}</span>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+                {isMobile && (
+                  <button
+                    onClick={() => setActiveId(null)}
+                    aria-label="Înapoi la listă"
+                    style={{ background: "none", border: "none", cursor: "pointer", color: T.ink2, display: "flex", padding: 4, flexShrink: 0 }}
+                  >
+                    <ArrowLeft size={17} />
+                  </button>
+                )}
+                <span style={{ fontWeight: 700, fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{active.title}</span>
                 {isAdmin && (
                   <span
                     style={{ fontSize: 11, color: T.ink3 }}
@@ -499,6 +525,7 @@ function ConversationsTab({ isAdmin }: { isAdmin: boolean }) {
           </>
         )}
       </Card>
+      )}
 
       {showGenerate && active && (
         <GenerateDocumentModal

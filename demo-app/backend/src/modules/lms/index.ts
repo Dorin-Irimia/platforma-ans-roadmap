@@ -8,9 +8,11 @@ import { lmsQuizRouter } from "./quiz.routes";
 import { lmsAssistantRouter } from "./assistant.routes";
 import { lmsTtsRouter } from "./tts.routes";
 import { lmsMediaRouter } from "./media.routes";
+import { lmsProjectsRouter } from "./projects.routes";
 
 export const lmsRouter = Router();
 
+lmsRouter.use(lmsProjectsRouter);
 lmsRouter.use(lmsCoursesRouter);
 lmsRouter.use(lmsLessonsRouter);
 lmsRouter.use(lmsAiRouter);

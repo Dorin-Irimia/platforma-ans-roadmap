@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Accessibility, Minus, Plus, RotateCcw } from "lucide-react";
 import { T, RADIUS, SHADOW } from "../theme";
+import { useIsMobile } from "../lib/useMediaQuery";
 
 const ZOOM_KEY = "ans_demo_a11y_zoom";
 const CONTRAST_KEY = "ans_demo_a11y_contrast";
@@ -30,6 +31,7 @@ export function initAccessibilityPreferences() {
 // cel mai bine în Chrome/Edge (proprietatea CSS `zoom` nu are suport complet Firefox),
 // aceeași constrângere deja documentată pentru Web Speech API în acest proiect.
 export function AccessibilityMenu() {
+  const isMobile = useIsMobile();
   const [open, setOpen] = useState(false);
   const [zoom, setZoom] = useState(() => Number(localStorage.getItem(ZOOM_KEY)) || 1);
   const [contrast, setContrast] = useState(() => localStorage.getItem(CONTRAST_KEY) === "true");
@@ -65,7 +67,7 @@ export function AccessibilityMenu() {
   }
 
   return (
-    <div ref={panelRef} style={{ position: "fixed", bottom: 24, right: 24, zIndex: 50 }}>
+    <div ref={panelRef} style={{ position: "fixed", bottom: isMobile ? 86 : 24, right: isMobile ? 12 : 24, zIndex: 50 }}>
       {open && (
         <div
           style={{

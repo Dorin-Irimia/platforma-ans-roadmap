@@ -5,12 +5,17 @@ import { requireAuth, AuthedRequest } from "../iam/rbac.middleware";
 import { newStoragePath, writeFile, readFile } from "../../shared/storage";
 import { generateCertificatePdf } from "./certificatePdf";
 import { hasPassedAllQuizzes } from "./lessons.routes";
+import { hasCourseAccess } from "./rbac";
+import { canAccessPublishedCourse } from "./projects.rbac";
 
 export const lmsEnrollmentRouter = Router();
 
 // Auto-enroll la primul acces + citire progres — un singur rând per (curs, utilizator),
 // folosit pentru reluarea cross-device (pct. 14).
 lmsEnrollmentRouter.get("/courses/:id/enrollment", requireAuth, async (req: AuthedRequest, res) => {
+  if (!(await hasCourseAccess(req.params.id, req.user!)) && !(await canAccessPublishedCourse(req.params.id, req.user!))) {
+    return res.status(403).json({ error: "Acces interzis — înscrie-te la un proiect care conține acest curs" });
+  }
   const enrollment = await prisma.lmsEnrollment.upsert({
     where: { courseId_userId: { courseId: req.params.id, userId: req.user!.id } },
     update: {},

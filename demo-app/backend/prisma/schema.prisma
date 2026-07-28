@@ -68,6 +68,8 @@ model User {
   lmsComments         LmsComment[]
   yearbookEditions    SportsYearbookEdition[]
   emailOtpFactor      EmailOtpFactor?
+  lmsProjectsOwned      LmsProject[]
+  lmsProjectEnrollments LmsProjectEnrollment[]
   // Legătură inversă opțională către entitatea de domeniu asociată unui cont de
   // stakeholder (SPORTIV/CLUB/FEDERATIE) — vezi Athlete/SportsClub/SportsFederation.userId.
   athleteProfile      Athlete?
@@ -1107,6 +1109,72 @@ model LmsCourse {
   certificates  LmsCertificate[]
   rubric        LmsRubric?
   intents       LmsIntent[]
+  projectLinks  LmsProjectCourse[]
+}
+
+// Organizator/tablou de bord (pct. 10, caiet 4.5.8) — un Proiect grupează mai multe
+// cursuri sub un singur punct de înscriere. Un cursant nu se mai înscrie curs cu curs:
+// se înscrie la proiect, iar înscrierea activă îi dă acces la toate cursurile din el
+// (ordonate liber sau secvențial, vezi LmsProjectProgression). Un curs fără nicio
+// legătură într-un proiect rămâne accesibil direct, ca înainte de această cerință.
+enum LmsProjectAccessMode {
+  OPEN        // autoînscriere instant, oricine
+  APPROVAL    // cerere de înscriere, decisă de owner/admin
+  INVITE_ONLY // doar owner/admin adaugă explicit utilizatori — proiectul nici nu e vizibil altora
+}
+
+enum LmsProjectProgression {
+  SEQUENTIAL // cursurile se deblochează în ordine (curs 1 → 2 → ...)
+  FREE       // toate cursurile din proiect sunt accesibile în orice ordine
+}
+
+model LmsProject {
+  id          String               @id @default(uuid())
+  title       String
+  description String?
+  accessMode  LmsProjectAccessMode  @default(OPEN)
+  progression LmsProjectProgression @default(FREE)
+  ownerId     String
+  owner       User                  @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+
+  courses     LmsProjectCourse[]
+  enrollments LmsProjectEnrollment[]
+}
+
+// Cursul + ordinea lui în proiect — ordinea contează doar în modul SEQUENTIAL.
+model LmsProjectCourse {
+  id        String     @id @default(uuid())
+  projectId String
+  project   LmsProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  courseId  String
+  course    LmsCourse  @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  order     Int        @default(0)
+
+  @@unique([projectId, courseId])
+}
+
+enum LmsProjectEnrollmentStatus {
+  PENDING
+  ACTIVE
+  REJECTED
+}
+
+// Un singur rând per (proiect, utilizator) — starea înscrierii determină accesul la
+// TOATE cursurile proiectului (vezi hasProjectAccess în projects.rbac.ts).
+model LmsProjectEnrollment {
+  id          String                     @id @default(uuid())
+  projectId   String
+  project     LmsProject                 @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status      LmsProjectEnrollmentStatus @default(PENDING)
+  requestedAt DateTime                   @default(now())
+  decidedAt   DateTime?
+  decidedById String?
+
+  @@unique([projectId, userId])
 }
 
 // Conținutul lecției e o listă ordonată de blocuri (TEXT/IMAGE/VIDEO/QUIZ) stocată ca

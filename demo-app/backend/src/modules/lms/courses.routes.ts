@@ -4,6 +4,7 @@ import { prisma } from "../../shared/prisma";
 import { requireAuth, AuthedRequest } from "../iam/rbac.middleware";
 import { logAction } from "../iam/audit.service";
 import { requireCourseCreator, hasCourseAccess, isPlatformAdmin } from "./rbac";
+import { canAccessPublishedCourse } from "./projects.rbac";
 
 export const lmsCoursesRouter = Router();
 
@@ -13,9 +14,10 @@ const courseInclude = {
   rubric: true,
 };
 
-// Organizator/tablou de bord (pct. 10) — listă diferențiată: Autor/Co-autor vede
-// cursurile proprii (+ poate crea), Evaluator/admin vede toate (pentru evaluare),
-// oricine altcineva vede catalogul publicat.
+// „Cursurile mele" (pct. 10) — pagina de autorat: Autor/Co-autor/CNFPA vede cursurile
+// proprii (+ poate crea), Evaluator/admin platformă vede toate (pentru evaluare). NU mai
+// arată catalogul public de cursuri publicate — acela se vede acum doar prin Proiecte
+// (projects.routes.ts), care controlează efectiv accesul unui cursant (vezi GET /courses/:id).
 //
 // Important: apartenența de curs (autor/colaborator) se verifică prin rândul real din
 // LmsCourseCollaborator, NU prin rolul global IAM al contului — invitarea unui utilizator
@@ -33,12 +35,7 @@ lmsCoursesRouter.get("/courses", requireAuth, async (req: AuthedRequest, res) =>
     include: courseInclude,
     orderBy: { updatedAt: "desc" },
   });
-  const published = await prisma.lmsCourse.findMany({
-    where: { status: "PUBLISHED", id: { notIn: owned.map((c) => c.id) } },
-    include: courseInclude,
-    orderBy: { updatedAt: "desc" },
-  });
-  res.json([...owned, ...published]);
+  res.json(owned);
 });
 
 const createCourseSchema = z.object({
@@ -63,8 +60,10 @@ lmsCoursesRouter.post("/courses", requireAuth, requireCourseCreator(), async (re
 lmsCoursesRouter.get("/courses/:id", requireAuth, async (req: AuthedRequest, res) => {
   const course = await prisma.lmsCourse.findUnique({ where: { id: req.params.id }, include: courseInclude });
   if (!course) return res.status(404).json({ error: "Curs inexistent" });
-  if (course.status !== "PUBLISHED" && !(await hasCourseAccess(course.id, req.user!)) && req.user!.role !== "EVALUATOR") {
-    return res.status(403).json({ error: "Acces interzis" });
+  if ((await hasCourseAccess(course.id, req.user!)) || req.user!.role === "EVALUATOR") return res.json(course);
+  if (course.status !== "PUBLISHED") return res.status(403).json({ error: "Acces interzis" });
+  if (!(await canAccessPublishedCourse(course.id, req.user!))) {
+    return res.status(403).json({ error: "Acces interzis — înscrie-te la un proiect care conține acest curs" });
   }
   res.json(course);
 });

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { GraduationCap, Plus } from "lucide-react";
 import { AppShell } from "../components/AppShell";
 import { Card, Button, FieldLabel, SectionHeader, Pill } from "../components/ui";
@@ -75,14 +75,15 @@ export default function LmsCoursesPage() {
   useEffect(load, []);
 
   return (
-    <AppShell title="Cursuri" subtitle="Platforma de învățare (LMS) — creare, colaborare și parcurgere cursuri">
-      {canCreate && (
-        <div style={{ marginBottom: 20 }}>
+    <AppShell title="Cursurile mele" subtitle="Creează și gestionează cursuri — atașează-le apoi la un proiect din „Proiecte” pentru ca un cursant să se poată înscrie">
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, flexWrap: "wrap", gap: 10 }}>
+        {canCreate ? (
           <Button id="lms-new-course-btn" onClick={() => setShowCreate(true)} style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <Plus size={15} /> Curs nou
           </Button>
-        </div>
-      )}
+        ) : <span />}
+        <Link to="/lms" style={{ fontSize: 13 }}>← Proiecte</Link>
+      </div>
       <SectionHeader title={`${courses.length} cursuri`} />
       <div style={{ display: "grid", gap: 12 }}>
         {courses.map((c, cIdx) => (

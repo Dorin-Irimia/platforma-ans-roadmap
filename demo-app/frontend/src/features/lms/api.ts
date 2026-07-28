@@ -469,3 +469,103 @@ export async function fetchCourseEnrollments(courseId: string): Promise<LmsEnrol
   const { data } = await api.get(`/api/lms/courses/${courseId}/enrollments`);
   return data;
 }
+
+// --- Proiecte (organizator/tablou de bord — pct. 10, caiet 4.5.8) ---
+// Un Proiect grupează mai multe cursuri sub un singur punct de înscriere; un cursant
+// se înscrie la proiect, nu curs cu curs (vezi projects.rbac.ts pe backend).
+
+export type LmsProjectAccessMode = "OPEN" | "APPROVAL" | "INVITE_ONLY";
+export type LmsProjectProgression = "SEQUENTIAL" | "FREE";
+export type LmsProjectEnrollmentStatus = "PENDING" | "ACTIVE" | "REJECTED";
+
+export interface LmsProjectCourseDto {
+  id: string;
+  projectId: string;
+  courseId: string;
+  order: number;
+  locked: boolean;
+  course: { id: string; title: string; description?: string; status: LmsCourseStatus };
+}
+
+export interface LmsProjectDto {
+  id: string;
+  title: string;
+  description?: string;
+  accessMode: LmsProjectAccessMode;
+  progression: LmsProjectProgression;
+  ownerId: string;
+  createdAt: string;
+  updatedAt: string;
+  courses: LmsProjectCourseDto[];
+  myEnrollmentStatus: LmsProjectEnrollmentStatus | null;
+}
+
+export async function fetchProjects(): Promise<LmsProjectDto[]> {
+  const { data } = await api.get("/api/lms/projects");
+  return data;
+}
+
+export async function createProject(input: { title: string; description?: string; accessMode: LmsProjectAccessMode; progression: LmsProjectProgression }): Promise<LmsProjectDto> {
+  const { data } = await api.post("/api/lms/projects", input);
+  return data;
+}
+
+export async function fetchProject(id: string): Promise<LmsProjectDto> {
+  const { data } = await api.get(`/api/lms/projects/${id}`);
+  return data;
+}
+
+export async function updateProject(id: string, input: Partial<{ title: string; description: string; accessMode: LmsProjectAccessMode; progression: LmsProjectProgression }>): Promise<LmsProjectDto> {
+  const { data } = await api.patch(`/api/lms/projects/${id}`, input);
+  return data;
+}
+
+export async function deleteProject(id: string): Promise<void> {
+  await api.delete(`/api/lms/projects/${id}`);
+}
+
+export async function attachExistingCourse(projectId: string, courseId: string): Promise<LmsProjectDto> {
+  const { data } = await api.post(`/api/lms/projects/${projectId}/courses`, { courseId });
+  return data;
+}
+
+export async function attachNewCourse(projectId: string, title: string, description?: string): Promise<LmsProjectDto> {
+  const { data } = await api.post(`/api/lms/projects/${projectId}/courses`, { title, description });
+  return data;
+}
+
+export async function removeProjectCourse(projectId: string, courseId: string): Promise<void> {
+  await api.delete(`/api/lms/projects/${projectId}/courses/${courseId}`);
+}
+
+export async function reorderProjectCourses(projectId: string, courseIds: string[]): Promise<LmsProjectDto> {
+  const { data } = await api.patch(`/api/lms/projects/${projectId}/courses/reorder`, { courseIds });
+  return data;
+}
+
+export async function enrollInProject(projectId: string): Promise<{ status: LmsProjectEnrollmentStatus }> {
+  const { data } = await api.post(`/api/lms/projects/${projectId}/enroll`);
+  return data;
+}
+
+export interface LmsProjectEnrollmentRosterDto {
+  id: string;
+  userId: string;
+  status: LmsProjectEnrollmentStatus;
+  requestedAt: string;
+  decidedAt?: string;
+  user: { id: string; name?: string; email: string };
+}
+
+export async function fetchProjectEnrollments(projectId: string): Promise<LmsProjectEnrollmentRosterDto[]> {
+  const { data } = await api.get(`/api/lms/projects/${projectId}/enrollments`);
+  return data;
+}
+
+export async function decideProjectEnrollment(projectId: string, userId: string, status: "ACTIVE" | "REJECTED"): Promise<void> {
+  await api.patch(`/api/lms/projects/${projectId}/enrollments/${userId}`, { status });
+}
+
+export async function revokeProjectAccess(projectId: string, userId: string): Promise<void> {
+  await api.delete(`/api/lms/projects/${projectId}/enrollments/${userId}`);
+}

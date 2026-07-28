@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "../../shared/prisma";
 import { requireAuth, AuthedRequest } from "../iam/rbac.middleware";
 import { hasCourseAccess } from "./rbac";
+import { canAccessPublishedCourse } from "./projects.rbac";
 
 export const lmsLessonsRouter = Router();
 
@@ -44,6 +45,12 @@ lmsLessonsRouter.get("/courses/:courseId/lessons", requireAuth, async (req: Auth
   // și pentru autorul/SUPER_ADMIN-ul cursului). Bariera se aplică doar cursanților reali.
   if (await assertCourseAccess(req.params.courseId, req.user!)) {
     return res.json(lessons);
+  }
+  // Enforcement server-side al accesului prin Proiect (nu doar UI) — altfel conținutul
+  // lecțiilor (inclusiv răspunsurile corecte din teste) ar circula spre client chiar
+  // dacă pagina de curs în sine e blocată (vezi canAccessPublishedCourse).
+  if (!(await canAccessPublishedCourse(req.params.courseId, req.user!))) {
+    return res.status(403).json({ error: "Acces interzis — înscrie-te la un proiect care conține acest curs" });
   }
   const course = await prisma.lmsCourse.findUnique({ where: { id: req.params.courseId }, select: { requireQuizToAdvance: true } });
   const locks = await computeLessonLocks(lessons, req.user!.id, course?.requireQuizToAdvance ?? true);

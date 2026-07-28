@@ -24,6 +24,8 @@ import ChatbotPage from "./pages/ChatbotPage";
 import LmsCoursesPage from "./pages/LmsCoursesPage";
 import LmsCourseEditorPage from "./pages/LmsCourseEditorPage";
 import LmsCoursePlayerPage from "./pages/LmsCoursePlayerPage";
+import LmsProjectsPage from "./pages/LmsProjectsPage";
+import LmsProjectDetailPage from "./pages/LmsProjectDetailPage";
 import SportsRegistryPage from "./pages/SportsRegistryPage";
 import MuseumPage from "./pages/MuseumPage";
 import ArchivePage from "./pages/ArchivePage";
@@ -36,6 +38,10 @@ import CmsPublicPage from "./pages/CmsPublicPage";
 
 const STAFF_ROLES = ["SUPER_ADMIN", "ADMIN_INSTITUTIE", "MODERATOR", "EVALUATOR", "AUTOR", "CO_AUTOR"];
 const ADMIN_ROLES = ["SUPER_ADMIN", "ADMIN_INSTITUTIE"];
+// Cine ajunge la pagina de autorat "Cursurile mele" — creatorii de conținut (vezi
+// requireCourseCreator() pe backend, lms/rbac.ts) PLUS Evaluator, care nu creează cursuri
+// dar are nevoie să le vadă/evalueze pe toate (backend GET /courses îi întoarce deja toate).
+const LMS_AUTHORING_ROLES = ["SUPER_ADMIN", "ADMIN_INSTITUTIE", "AUTOR", "CNFPA", "EVALUATOR"];
 // Roluri de stakeholder extern (Portal Public, 4.5.1) — conturi SPORTIV/FEDERATIE/CLUB/CNFPA.
 const STAKEHOLDER_ROLES = ["SPORTIV", "FEDERATIE", "CLUB", "CNFPA"];
 
@@ -139,7 +145,23 @@ export default function App() {
             path="/lms"
             element={
               <ProtectedRoute>
+                <LmsProjectsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/lms/mine"
+            element={
+              <ProtectedRoute roles={LMS_AUTHORING_ROLES}>
                 <LmsCoursesPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/lms/projects/:id"
+            element={
+              <ProtectedRoute>
+                <LmsProjectDetailPage />
               </ProtectedRoute>
             }
           />
