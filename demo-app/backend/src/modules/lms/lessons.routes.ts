@@ -3,7 +3,7 @@ import { z } from "zod";
 import { prisma } from "../../shared/prisma";
 import { requireAuth, AuthedRequest } from "../iam/rbac.middleware";
 import { hasCourseAccess } from "./rbac";
-import { canAccessPublishedCourse } from "./projects.rbac";
+import { canAccessPublishedCourse, normalizeProjectId } from "./projects.rbac";
 
 export const lmsLessonsRouter = Router();
 
@@ -53,7 +53,8 @@ lmsLessonsRouter.get("/courses/:courseId/lessons", requireAuth, async (req: Auth
     return res.status(403).json({ error: "Acces interzis — înscrie-te la un proiect care conține acest curs" });
   }
   const course = await prisma.lmsCourse.findUnique({ where: { id: req.params.courseId }, select: { requireQuizToAdvance: true } });
-  const locks = await computeLessonLocks(lessons, req.user!.id, course?.requireQuizToAdvance ?? true);
+  const projectId = await normalizeProjectId(req.params.courseId, req.query.projectId);
+  const locks = await computeLessonLocks(lessons, req.user!.id, course?.requireQuizToAdvance ?? true, projectId);
   // Nu expunem conținutul (inclusiv răspunsurile corecte din QUIZ) al lecțiilor
   // încă blocate — enforcement server-side al Barierei Logice (pct. 15), nu doar UI.
   res.json(lessons.map((l) => (locks.get(l.id) ? { ...l, content: [] } : l)));
@@ -136,7 +137,11 @@ type LessonRow = { id: string; content: unknown };
 // pentru UI, și de `quiz.routes.ts` pentru a respinge server-side o încercare pe o
 // lecție încă blocată. `requireQuizToAdvance=false` (setare de curs) dezactivează complet
 // bariera — nicio lecție nu mai e considerată blocată, indiferent de scoruri.
-export async function computeLessonLocks(lessons: LessonRow[], userId: string, requireQuizToAdvance: boolean): Promise<Map<string, boolean>> {
+// `projectId` — "" pentru un curs de sine stătător / acces direct (comportament identic cu
+// dinainte de reutilizarea cursurilor între proiecte); altfel, doar tentativele de test DIN
+// ACEL proiect contează pentru deblocare — un test promovat într-un proiect nu deblochează
+// fals aceeași lecție reutilizată într-un proiect nou, unde cursantul n-a făcut încă nimic.
+export async function computeLessonLocks(lessons: LessonRow[], userId: string, requireQuizToAdvance: boolean, projectId: string): Promise<Map<string, boolean>> {
   const locks = new Map<string, boolean>();
 
   if (!requireQuizToAdvance) {
@@ -156,7 +161,7 @@ export async function computeLessonLocks(lessons: LessonRow[], userId: string, r
       continue;
     }
     const lastAttempt = await prisma.lmsQuizAttempt.findFirst({
-      where: { lessonId: prevLesson.id, userId },
+      where: { lessonId: prevLesson.id, projectId, userId },
       orderBy: { createdAt: "desc" },
     });
     locks.set(lessons[i].id, !lastAttempt || lastAttempt.score < quizBlock.requiredScoreToUnlockNext);
@@ -168,13 +173,13 @@ export async function computeLessonLocks(lessons: LessonRow[], userId: string, r
 // Condiție de emitere a certificatului (pct. 15 + cerință nouă): cursantul trebuie să fi
 // promovat (scor >= prag) FIECARE test din curs care are un prag > 0 definit — indiferent
 // de `requireQuizToAdvance` (acel comutator gate-uiește doar navigarea, nu certificatul).
-export async function hasPassedAllQuizzes(courseId: string, userId: string): Promise<boolean> {
+export async function hasPassedAllQuizzes(courseId: string, userId: string, projectId: string): Promise<boolean> {
   const lessons = await prisma.lmsLesson.findMany({ where: { courseId } });
   for (const lesson of lessons) {
     const quizBlock = findQuizBlock(lesson.content);
     if (!quizBlock || quizBlock.requiredScoreToUnlockNext <= 0) continue;
     const lastAttempt = await prisma.lmsQuizAttempt.findFirst({
-      where: { lessonId: lesson.id, userId },
+      where: { lessonId: lesson.id, projectId, userId },
       orderBy: { createdAt: "desc" },
     });
     if (!lastAttempt || lastAttempt.score < quizBlock.requiredScoreToUnlockNext) return false;
@@ -185,6 +190,7 @@ export async function hasPassedAllQuizzes(courseId: string, userId: string): Pro
 lmsLessonsRouter.get("/courses/:courseId/lessons/access", requireAuth, async (req: AuthedRequest, res) => {
   const lessons = await prisma.lmsLesson.findMany({ where: { courseId: req.params.courseId }, orderBy: { order: "asc" } });
   const course = await prisma.lmsCourse.findUnique({ where: { id: req.params.courseId }, select: { requireQuizToAdvance: true } });
-  const locks = await computeLessonLocks(lessons, req.user!.id, course?.requireQuizToAdvance ?? true);
+  const projectId = await normalizeProjectId(req.params.courseId, req.query.projectId);
+  const locks = await computeLessonLocks(lessons, req.user!.id, course?.requireQuizToAdvance ?? true, projectId);
   res.json(lessons.map((l) => ({ lessonId: l.id, locked: locks.get(l.id) ?? false })));
 });

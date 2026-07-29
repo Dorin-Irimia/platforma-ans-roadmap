@@ -38,6 +38,11 @@ export interface LmsCourseSummary {
   allowLearnerComments: boolean;
   requireQuizToAdvance: boolean;
   issueCertificate: boolean;
+  showQuizCorrectAnswers: boolean;
+  feedbackEnabled: boolean;
+  // Proiectul(ele) de care e deja atașat cursul — vezi AddCourseForm din
+  // LmsProjectDetailPage.tsx (selector "din ce proiect" la atașarea unui curs existent).
+  projectLinks?: { project: { id: string; title: string } }[];
 }
 
 export async function fetchCourses(): Promise<LmsCourseSummary[]> {
@@ -135,8 +140,8 @@ export interface LessonAccessDto {
   locked: boolean;
 }
 
-export async function fetchLessonAccess(courseId: string): Promise<LessonAccessDto[]> {
-  const { data } = await api.get(`/api/lms/courses/${courseId}/lessons/access`);
+export async function fetchLessonAccess(courseId: string, projectId?: string): Promise<LessonAccessDto[]> {
+  const { data } = await api.get(`/api/lms/courses/${courseId}/lessons/access`, { params: { projectId } });
   return data;
 }
 
@@ -209,13 +214,13 @@ export interface LmsCommentDto {
   createdAt: string;
 }
 
-export async function fetchComments(lessonId: string): Promise<LmsCommentDto[]> {
-  const { data } = await api.get(`/api/lms/lessons/${lessonId}/comments`);
+export async function fetchComments(lessonId: string, projectId?: string): Promise<LmsCommentDto[]> {
+  const { data } = await api.get(`/api/lms/lessons/${lessonId}/comments`, { params: { projectId } });
   return data;
 }
 
-export async function addComment(lessonId: string, blockId: string, body: string, quote?: string): Promise<LmsCommentDto> {
-  const { data } = await api.post(`/api/lms/lessons/${lessonId}/comments`, { blockId, body, quote });
+export async function addComment(lessonId: string, blockId: string, body: string, quote?: string, projectId?: string): Promise<LmsCommentDto> {
+  const { data } = await api.post(`/api/lms/lessons/${lessonId}/comments`, { blockId, body, quote, projectId });
   return data;
 }
 
@@ -232,6 +237,67 @@ export async function updateCommentStatus(id: string, status: LmsCommentStatus):
 // Ștergere comentariu (+ răspunsurile lui) — rezervată Super Admin (vezi ruta backend).
 export async function deleteComment(id: string): Promise<void> {
   await api.delete(`/api/lms/comments/${id}`);
+}
+
+// --- Feedback prin stele (+ comentariu opțional) ---
+// Distinct de LmsComment (comentarii ancorate, ca la Word, folosite de colaboratori la
+// revizuirea unui draft) — acesta e feedback de satisfacție, dat de cursanți SAU
+// colaboratori, activabil per curs (LmsCourseSummary.feedbackEnabled).
+
+export type LmsFeedbackScope = "COURSE" | "BLOCK";
+
+export interface LmsMyFeedback {
+  rating: number | null;
+  comment: string | null;
+  updatedAt: string | null;
+}
+
+export interface LmsFeedbackCommentRow {
+  id: string;
+  authorName: string;
+  rating: number;
+  comment: string | null;
+  createdAt: string;
+}
+
+export interface LmsFeedbackAggregate {
+  count: number;
+  avg: number;
+  distribution: number[]; // [nr. de 1★, 2★, 3★, 4★, 5★]
+  comments: LmsFeedbackCommentRow[];
+}
+
+export interface LmsFeedbackBlockReport extends LmsFeedbackAggregate {
+  blockId: string;
+  label: string;
+}
+
+export interface LmsFeedbackLessonReport {
+  lessonId: string;
+  lessonTitle: string;
+  blocks: LmsFeedbackBlockReport[];
+}
+
+export interface LmsFeedbackSummary {
+  course: LmsFeedbackAggregate;
+  lessons: LmsFeedbackLessonReport[];
+}
+
+export async function submitFeedback(
+  courseId: string,
+  payload: { scope: LmsFeedbackScope; lessonId?: string; blockId?: string; rating: number; comment?: string; projectId?: string }
+): Promise<void> {
+  await api.post(`/api/lms/courses/${courseId}/feedback`, payload);
+}
+
+export async function fetchMyFeedback(courseId: string, scope: LmsFeedbackScope, lessonId?: string, blockId?: string, projectId?: string): Promise<LmsMyFeedback> {
+  const { data } = await api.get(`/api/lms/courses/${courseId}/feedback/mine`, { params: { scope, lessonId, blockId, projectId } });
+  return data;
+}
+
+export async function fetchFeedbackSummary(courseId: string, projectId?: string): Promise<LmsFeedbackSummary> {
+  const { data } = await api.get(`/api/lms/courses/${courseId}/feedback/summary`, { params: { projectId } });
+  return data;
 }
 
 export async function fetchRubric(courseId: string): Promise<LmsRubricDto | null> {
@@ -273,13 +339,33 @@ export interface LmsEnrollmentDto {
   updatedAt: string;
 }
 
-export async function fetchEnrollment(courseId: string): Promise<LmsEnrollmentDto> {
-  const { data } = await api.get(`/api/lms/courses/${courseId}/enrollment`);
+export async function fetchEnrollment(courseId: string, projectId?: string): Promise<LmsEnrollmentDto> {
+  const { data } = await api.get(`/api/lms/courses/${courseId}/enrollment`, { params: { projectId } });
   return data;
 }
 
-export async function updateProgress(courseId: string, input: { currentLessonId?: string; progressPercent?: number }): Promise<LmsEnrollmentDto> {
-  const { data } = await api.patch(`/api/lms/courses/${courseId}/enrollment/progress`, input);
+export async function updateProgress(courseId: string, input: { currentLessonId?: string; progressPercent?: number }, projectId?: string): Promise<LmsEnrollmentDto> {
+  const { data } = await api.patch(`/api/lms/courses/${courseId}/enrollment/progress`, { ...input, projectId });
+  return data;
+}
+
+// Panoul principal — "Continuă parcurgerea" (widget-ul ContinueLearningWidget) — toate
+// înscrierile utilizatorului curent, peste toate cursurile, cele mai recent active primele.
+export interface LmsMyEnrollmentDto {
+  id: string;
+  courseId: string;
+  course: { id: string; title: string };
+  currentLessonId?: string | null;
+  currentLessonTitle?: string | null;
+  progressPercent: number;
+  updatedAt: string;
+  // Proiectul prin care e accesibil cursul, dacă e cazul — permite butonului "Continuă"
+  // să te ducă înapoi la proiectul corect, nu la catalogul general.
+  projectId?: string | null;
+}
+
+export async function fetchMyEnrollments(): Promise<LmsMyEnrollmentDto[]> {
+  const { data } = await api.get("/api/lms/my-enrollments");
   return data;
 }
 
@@ -287,6 +373,9 @@ export async function updateProgress(courseId: string, input: { currentLessonId?
 export interface LmsCertificateDto {
   id: string;
   courseId: string;
+  // "" = curs de sine stătător / fără proiect — un curs reutilizat în mai multe proiecte
+  // primește un certificat SEPARAT per proiect (vezi schema.prisma).
+  projectId: string;
   certificateNumber: string;
   issuedAt: string;
   course: { id: string; title: string };
@@ -311,8 +400,8 @@ export async function downloadCertificate(certificate: LmsCertificateDto) {
 
 // Fișier audio real (pct. 11), generat server-side (espeak-ng) — spre deosebire de
 // redarea live cu Web Speech API din `speakText`, aici primim un .wav propriu-zis de descărcat.
-export async function downloadLessonAudio(text: string) {
-  const { data } = await api.post("/api/lms/tts", { text }, { responseType: "blob" });
+export async function downloadLessonAudio(text: string, rate?: number) {
+  const { data } = await api.post("/api/lms/tts", { text, rate }, { responseType: "blob" });
   const url = URL.createObjectURL(data);
   const a = document.createElement("a");
   a.href = url;
@@ -323,8 +412,8 @@ export async function downloadLessonAudio(text: string) {
 
 // --- Quiz ---
 
-export async function submitQuizAttempt(lessonId: string, answers: Record<string, number[]>): Promise<{ score: number; passed: boolean; correctCount: number; totalCount: number }> {
-  const { data } = await api.post(`/api/lms/lessons/${lessonId}/quiz-attempt`, { answers });
+export async function submitQuizAttempt(lessonId: string, answers: Record<string, number[]>, projectId?: string): Promise<{ score: number; passed: boolean; correctCount: number; totalCount: number }> {
+  const { data } = await api.post(`/api/lms/lessons/${lessonId}/quiz-attempt`, { answers, projectId });
   return data;
 }
 
@@ -349,8 +438,8 @@ export interface LmsQuizLessonReport {
   questions: LmsQuizQuestionReport[];
 }
 
-export async function fetchQuizReport(courseId: string): Promise<LmsQuizLessonReport[]> {
-  const { data } = await api.get(`/api/lms/courses/${courseId}/quiz-report`);
+export async function fetchQuizReport(courseId: string, projectId?: string): Promise<LmsQuizLessonReport[]> {
+  const { data } = await api.get(`/api/lms/courses/${courseId}/quiz-report`, { params: { projectId } });
   return data;
 }
 

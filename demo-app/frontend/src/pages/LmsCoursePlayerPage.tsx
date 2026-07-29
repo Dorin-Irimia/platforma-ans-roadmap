@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { Lock, Mic, Volume2, Square, Download, Send, Award, Check } from "lucide-react";
 import { AppShell } from "../components/AppShell";
 import { Card, Button } from "../components/ui";
@@ -17,20 +17,35 @@ import {
   downloadLessonAudio,
   fetchComments,
   addComment,
+  deleteComment,
   LmsCourseSummary,
   LmsLessonDto,
   LessonAccessDto,
   LmsCertificateDto,
   LmsCommentDto,
+  LessonBlock,
 } from "../features/lms/api";
-import { LessonBlocksView } from "../components/lms/LessonBlocksView";
+import { LessonBlocksView, extractPlainText, TextAudioControls } from "../components/lms/LessonBlocksView";
 import { CommentableLessonView } from "../components/lms/CommentableLessonView";
 import { QuizPlayer } from "../components/lms/QuizPlayer";
+import { FeedbackWidget } from "../components/lms/FeedbackWidget";
 import { isSpeechRecognitionSupported, startSpeechRecognition, isSpeechSynthesisSupported, speakText, stopSpeech } from "../features/chatbot/speech";
+import { useToast } from "../components/ToastProvider";
 
 export default function LmsCoursePlayerPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const toast = useToast();
+  const [searchParams] = useSearchParams();
+  // Când cursul e accesat dintr-un proiect (LmsProjectDetailPage trece ?projectId=...),
+  // "înapoi"/"finalizează" trebuie să te ducă la ACEL proiect, nu la catalogul general —
+  // altfel pierzi contextul (ex. următorul curs secvențial deblocat) de fiecare dată.
+  const projectId = searchParams.get("projectId");
+  const backTarget = projectId ? `/lms/projects/${projectId}` : "/lms";
+  // Toate interacțiunile (progres, comentarii, tentative de test, evaluări prin stele)
+  // sunt ancorate în proiectul prin care a fost accesat cursul — un curs reutilizat în mai
+  // multe proiecte are aceste date complet separate per proiect (vezi schema.prisma).
+  const projectIdParam = projectId || undefined;
   const isMobile = useIsMobile();
   const [course, setCourse] = useState<LmsCourseSummary | null>(null);
   const [lessons, setLessons] = useState<LmsLessonDto[]>([]);
@@ -65,13 +80,34 @@ export default function LmsCoursePlayerPage() {
   }
 
   function loadAccess() {
-    if (id) fetchLessonAccess(id).then(setAccess).catch(() => setAccess([]));
+    if (id) fetchLessonAccess(id, projectIdParam).then(setAccess).catch(() => setAccess([]));
+  }
+
+  // Reîmprospătarea reală (loadAccess, un GET) e asincronă — dacă utilizatorul dă click pe
+  // "Lecția următoare" chiar în clipa în care apare rezultatul testului, cursa asta putea
+  // face ca butonul să pară activ dar navigarea să eșueze silențios (isLocked citea încă
+  // starea veche, blocată). La un test promovat, deblocăm local, imediat, lecția următoare,
+  // înainte să mai așteptăm răspunsul serverului — loadAccess() rămâne, doar ca reconciliere.
+  function handleQuizSubmitted(passed: boolean) {
+    if (passed && activeLesson) {
+      const idx = lessons.findIndex((l) => l.id === activeLesson.id);
+      const nextLesson = lessons[idx + 1];
+      if (nextLesson) {
+        setAccess((prev) => {
+          const exists = prev.some((a) => a.lessonId === nextLesson.id);
+          return exists
+            ? prev.map((a) => (a.lessonId === nextLesson.id ? { ...a, locked: false } : a))
+            : [...prev, { lessonId: nextLesson.id, locked: false }];
+        });
+      }
+    }
+    loadAccess();
   }
 
   function loadCertificate() {
     if (!id) return;
     fetchMyCertificates()
-      .then((certs) => setCertificate(certs.find((c) => c.courseId === id) || null))
+      .then((certs) => setCertificate(certs.find((c) => c.courseId === id && c.projectId === (projectIdParam || "")) || null))
       .catch(() => setCertificate(null));
   }
 
@@ -79,13 +115,27 @@ export default function LmsCoursePlayerPage() {
   // își vede DOAR propriile comentarii + răspunsurile primite la ele, niciodată
   // comentariile altor cursanți.
   function loadComments(lessonId: string) {
-    fetchComments(lessonId).then(setComments).catch(() => setComments([]));
+    fetchComments(lessonId, projectIdParam).then(setComments).catch(() => setComments([]));
   }
 
   async function handleAddComment(blockId: string, body: string, quote?: string) {
     if (!activeId) return;
-    await addComment(activeId, blockId, body, quote);
+    await addComment(activeId, blockId, body, quote, projectIdParam);
     loadComments(activeId);
+  }
+
+  // Cursantul își poate șterge propriile comentarii, dar doar cât timp firul e încă
+  // neatins (Deschis, fără răspuns primit) sau deja finalizat (Rezolvat/Respins) — un
+  // comentariu Deschis la care a răspuns deja un formator rămâne needitabil (server-ul
+  // impune aceeași regulă, ca să nu se poată șterge răspunsul primit).
+  async function handleDeleteOwnComment(commentId: string) {
+    if (!window.confirm("Ștergi definitiv acest comentariu? Acțiunea nu poate fi anulată.")) return;
+    try {
+      await deleteComment(commentId);
+      if (activeId) loadComments(activeId);
+    } catch (e: any) {
+      toast.error(e?.response?.data?.error || "Comentariul nu a putut fi șters");
+    }
   }
 
   useEffect(() => {
@@ -97,9 +147,10 @@ export default function LmsCoursePlayerPage() {
     // — lăsăm efectul de mai jos să aleagă prima lecție, indiferent de ordinea în care
     // răspund cele două cereri (altfel, dacă acest răspuns sosește ultimul, ar rescrie
     // silențios selecția implicită și ar arăta fals "acest curs nu are încă lecții").
-    fetchEnrollment(id).then((e) => { if (e.currentLessonId) setActiveId(e.currentLessonId); });
+    fetchEnrollment(id, projectIdParam).then((e) => { if (e.currentLessonId) setActiveId(e.currentLessonId); });
     loadCertificate();
-  }, [id]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, projectIdParam]);
 
   useEffect(() => {
     if (!activeId && lessons.length > 0) setActiveId(lessons[0].id);
@@ -120,23 +171,31 @@ export default function LmsCoursePlayerPage() {
     setAnswer(null);
     const idx = lessons.findIndex((l) => l.id === lessonId);
     const progressPercent = lessons.length ? Math.round(((idx + 1) / lessons.length) * 100) : 0;
-    await updateProgress(id, { currentLessonId: lessonId, progressPercent });
+    await updateProgress(id, { currentLessonId: lessonId, progressPercent }, projectIdParam);
     if (progressPercent >= 100) loadCertificate();
   }
 
   // Marchează explicit cursul ca finalizat (100%, chiar dacă utilizatorul a ajuns direct
   // pe ultima lecție fără să treacă prin goToLesson — ex. un curs cu o singură lecție) și
-  // se întoarce la lista de proiecte, de unde a pornit parcurgerea.
+  // se întoarce la proiectul din care a fost accesat cursul (sau la catalog, dacă a fost
+  // accesat direct, fără proiect).
   async function handleFinishCourse() {
     if (!id || !activeLesson) return;
-    await updateProgress(id, { currentLessonId: activeLesson.id, progressPercent: 100 });
-    navigate("/lms");
+    await updateProgress(id, { currentLessonId: activeLesson.id, progressPercent: 100 }, projectIdParam);
+    navigate(backTarget);
   }
 
   const activeLesson = lessons.find((l) => l.id === activeId) || null;
   const activeIdx = activeLesson ? lessons.findIndex((l) => l.id === activeLesson.id) : -1;
   const nonQuizBlocks = activeLesson ? activeLesson.content.filter((b) => b.type !== "QUIZ") : [];
   const quizBlock = activeLesson ? (activeLesson.content.find((b) => b.type === "QUIZ") as any) : null;
+  // Textul complet al lecției (toate blocurile TEXT concatenate) — pentru Ascultă/Descarcă
+  // pe lecția întreagă, pe lângă controalele per-fragment din LessonBlocksView/CommentableLessonView.
+  const lessonPlainText = nonQuizBlocks
+    .filter((b): b is Extract<LessonBlock, { type: "TEXT" }> => b.type === "TEXT")
+    .map((b) => extractPlainText(b.text))
+    .filter(Boolean)
+    .join("\n\n");
 
   async function handleAsk() {
     if (!activeLesson || !question.trim()) return;
@@ -249,15 +308,28 @@ export default function LmsCoursePlayerPage() {
         ) : (
           <div id="lms-player-lesson-content">
             <Card style={{ marginBottom: 20 }}>
-              <h2 style={{ marginTop: 0 }}>{activeLesson.title}</h2>
+              <h2 style={{ marginTop: 0, marginBottom: 4 }}>{activeLesson.title}</h2>
+              {lessonPlainText && (
+                <div style={{ marginBottom: 16 }}>
+                  <TextAudioControls text={lessonPlainText} label="Ascultă lecția întreagă" />
+                </div>
+              )}
               {course.allowLearnerComments && !isLocked(activeLesson.id) ? (
-                <CommentableLessonView blocks={nonQuizBlocks} comments={comments} onAddComment={handleAddComment} />
+                <CommentableLessonView
+                  blocks={nonQuizBlocks}
+                  comments={comments}
+                  onAddComment={handleAddComment}
+                  feedbackEnabled={course.feedbackEnabled}
+                  courseId={course.id}
+                  lessonId={activeLesson.id}
+                  projectId={projectIdParam}
+                />
               ) : (
-                <LessonBlocksView blocks={nonQuizBlocks} />
+                <LessonBlocksView blocks={nonQuizBlocks} feedbackEnabled={course.feedbackEnabled} courseId={course.id} lessonId={activeLesson.id} projectId={projectIdParam} />
               )}
               {quizBlock && (
                 <div style={{ marginTop: 18 }}>
-                  <QuizPlayer lessonId={activeLesson.id} quiz={quizBlock} onSubmitted={loadAccess} />
+                  <QuizPlayer key={activeLesson.id} lessonId={activeLesson.id} quiz={quizBlock} onSubmitted={handleQuizSubmitted} showCorrectAnswers={course.showQuizCorrectAnswers} projectId={projectIdParam} />
                 </div>
               )}
 
@@ -267,13 +339,25 @@ export default function LmsCoursePlayerPage() {
                     Comentariile mele
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                    {comments.map((c) => (
+                    {comments.map((c) => {
+                      const claimedByAdmin = c.status === "OPEN" && !!c.replies?.length;
+                      return (
                       <div key={c.id} style={{ padding: 10, background: T.line2, borderRadius: 10 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
                         <div style={{ fontSize: 11.5, color: T.ink3, marginBottom: 4 }}>
                           {new Date(c.createdAt).toLocaleString("ro-RO")} ·{" "}
                           <span style={{ fontWeight: 700, color: c.status === "OPEN" ? T.warn : c.status === "RESOLVED" ? T.success : T.danger }}>
                             {c.status === "OPEN" ? "Deschis" : c.status === "RESOLVED" ? "Rezolvat" : "Respins"}
                           </span>
+                        </div>
+                        {!claimedByAdmin && (
+                          <button
+                            onClick={() => handleDeleteOwnComment(c.id)}
+                            style={{ border: "none", background: "none", color: T.danger, fontSize: 11, fontWeight: 600, cursor: "pointer", padding: 0, flexShrink: 0 }}
+                          >
+                            Șterge
+                          </button>
+                        )}
                         </div>
                         {c.quote && (
                           <div style={{ fontSize: 12, fontStyle: "italic", color: T.ink3, borderLeft: `3px solid ${T.brand}`, paddingLeft: 8, marginBottom: 6 }}>
@@ -294,7 +378,8 @@ export default function LmsCoursePlayerPage() {
                           </div>
                         )}
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -319,6 +404,15 @@ export default function LmsCoursePlayerPage() {
                 )}
               </div>
             </Card>
+
+            {course.feedbackEnabled && (
+              <Card style={{ marginBottom: 20 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase", color: T.ink3, marginBottom: 4 }}>
+                  Evaluează cursul
+                </div>
+                <FeedbackWidget courseId={course.id} scope="COURSE" projectId={projectIdParam} label="Cum ți se pare acest curs în ansamblu?" />
+              </Card>
+            )}
 
             <Card id="lms-player-ask-assistant">
               <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase", color: T.ink3, marginBottom: 12 }}>
@@ -365,7 +459,7 @@ export default function LmsCoursePlayerPage() {
         )}
       </div>
       <div style={{ marginTop: 10 }}>
-        <Button variant="ghost" onClick={() => navigate("/lms")}>← Înapoi la cursuri</Button>
+        <Button variant="ghost" onClick={() => navigate(backTarget)}>← {projectId ? "Înapoi la proiect" : "Înapoi la cursuri"}</Button>
       </div>
     </AppShell>
   );

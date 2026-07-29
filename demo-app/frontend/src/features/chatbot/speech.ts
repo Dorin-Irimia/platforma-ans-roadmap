@@ -29,11 +29,13 @@ export function isSpeechSynthesisSupported(): boolean {
 // `onEnd` se declanșează atât la final natural, cât și la oprire manuală (`stopSpeech`)
 // sau la eroare — apelantul îl folosește ca să-și resetreze starea locală "vorbește acum",
 // fără să trebuiască să dubleze logica de tracking a Web Speech API în fiecare buton.
-export function speakText(text: string, onEnd?: () => void) {
+// `rate` — viteza vocii (1 = normal), setare globală din AccessibilityMenu.tsx.
+export function speakText(text: string, onEnd?: () => void, rate = 1) {
   if (!isSpeechSynthesisSupported()) return;
   window.speechSynthesis.cancel();
   const utterance = new SpeechSynthesisUtterance(text);
   utterance.lang = "ro-RO";
+  utterance.rate = rate;
   if (onEnd) {
     utterance.onend = onEnd;
     utterance.onerror = onEnd;

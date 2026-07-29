@@ -42,7 +42,8 @@ export async function canSeeProject(project: ProjectRow, user: { id: string; rol
 export async function computeProjectCourseLocks(
   orderedCourseIds: string[],
   userId: string,
-  progression: string
+  progression: string,
+  projectId: string
 ): Promise<Map<string, boolean>> {
   const locks = new Map<string, boolean>();
   if (progression !== "SEQUENTIAL") {
@@ -55,12 +56,27 @@ export async function computeProjectCourseLocks(
       continue;
     }
     const prevCourseId = orderedCourseIds[i - 1];
+    // Progres SEPARAT per proiect (vezi LmsEnrollment) — cheia include projectId, nu doar
+    // (curs, utilizator), ca finalizarea cursului anterior într-un ALT proiect să nu
+    // deblocheze fals cursul următor aici.
     const prevEnrollment = await prisma.lmsEnrollment.findUnique({
-      where: { courseId_userId: { courseId: prevCourseId, userId } },
+      where: { courseId_projectId_userId: { courseId: prevCourseId, projectId, userId } },
     });
     locks.set(orderedCourseIds[i], (prevEnrollment?.progressPercent ?? 0) < 100);
   }
   return locks;
+}
+
+// Derivă un `projectId` de încredere pentru scoping-ul interacțiunilor (progres, comentarii,
+// tentative de test, evaluări prin stele) — niciodată nu are încredere direct în ce trimite
+// clientul: dacă `rawProjectId` nu corespunde unei legături REALE (proiect, curs), se
+// întoarce la sentinelul "" (fără proiect), altfel un client rău-intenționat ar putea
+// "vedea"/polua progresul unui alt proiect trimițând orice id arbitrar. "" e valoarea folosită
+// consecvent și pentru cursurile de sine stătătoare (fără nicio legătură de proiect).
+export async function normalizeProjectId(courseId: string, rawProjectId: unknown): Promise<string> {
+  if (typeof rawProjectId !== "string" || !rawProjectId) return "";
+  const link = await prisma.lmsProjectCourse.findUnique({ where: { projectId_courseId: { projectId: rawProjectId, courseId } } });
+  return link ? rawProjectId : "";
 }
 
 // Punct unic de decizie "poate acest CURSANT (non-editor) să acceseze conținutul acestui
@@ -80,7 +96,7 @@ export async function canAccessPublishedCourse(courseId: string, user: { id: str
   for (const link of projectLinks) {
     if (!(await hasProjectAccess(link.project, user))) continue;
     const orderedCourseIds = link.project.courses.map((c) => c.courseId);
-    const locks = await computeProjectCourseLocks(orderedCourseIds, user.id, link.project.progression);
+    const locks = await computeProjectCourseLocks(orderedCourseIds, user.id, link.project.progression, link.project.id);
     if (!locks.get(courseId)) return true;
   }
   return false;

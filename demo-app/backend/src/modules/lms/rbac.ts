@@ -22,3 +22,15 @@ export async function hasCourseAccess(courseId: string, user: { id: string; role
 export function isPlatformAdmin(role: RoleName): boolean {
   return (PLATFORM_ADMIN_ROLES as readonly string[]).includes(role);
 }
+
+// Colaborare REALĂ pe curs — un rând efectiv în LmsCourseCollaborator, fără bypass-ul de
+// rol global din hasCourseAccess. Folosit strict pentru vizibilitatea comentariilor: un
+// SUPER_ADMIN/ADMIN_INSTITUTIE care parcurge un curs CA cursant (nu ca autor/co-autor real
+// al lui) trebuie să-și vadă doar propriile comentarii, la fel ca orice alt cursant — rolul
+// global de admin nu trebuie să-i dea acces implicit la comentariile private ale altora.
+export async function isRealCourseCollaborator(courseId: string, userId: string): Promise<boolean> {
+  const collab = await prisma.lmsCourseCollaborator.findUnique({
+    where: { courseId_userId: { courseId, userId } },
+  });
+  return !!collab;
+}

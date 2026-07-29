@@ -32,6 +32,7 @@ import ArchivePage from "./pages/ArchivePage";
 import YearbookPage from "./pages/YearbookPage";
 import NomenclatoarePage from "./pages/NomenclatoarePage";
 import MyAccountPage from "./pages/MyAccountPage";
+import AccountSettingsPage from "./pages/AccountSettingsPage";
 import MediaLibraryPage from "./pages/MediaLibraryPage";
 import CmsAdminPage from "./pages/CmsAdminPage";
 import CmsPublicPage from "./pages/CmsPublicPage";
@@ -224,6 +225,14 @@ export default function App() {
             element={
               <ProtectedRoute roles={STAKEHOLDER_ROLES}>
                 <MyAccountPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/setari-cont"
+            element={
+              <ProtectedRoute>
+                <AccountSettingsPage />
               </ProtectedRoute>
             }
           />

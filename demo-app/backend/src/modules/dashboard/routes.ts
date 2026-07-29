@@ -13,7 +13,7 @@ export const dashboardRouter = Router();
 // atașamentele din DMS — vezi documents.routes.ts pentru justificare.
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 4 * 1024 * 1024, files: 1 } });
 
-const WIDGET_TYPES = ["RECENT_REQUESTS", "ACCOUNT_SUMMARY", "CHART", "SAVED_REPORT", "LINK_BUTTON", "CUSTOM_BUTTON", "STATS", "ACTIVITY_LOG", "AUTOMATION_SUMMARY"] as const;
+const WIDGET_TYPES = ["RECENT_REQUESTS", "ACCOUNT_SUMMARY", "CHART", "SAVED_REPORT", "LINK_BUTTON", "CUSTOM_BUTTON", "STATS", "ACTIVITY_LOG", "AUTOMATION_SUMMARY", "LMS_CONTINUE_LEARNING"] as const;
 
 const STAFF_ROLES = ["SUPER_ADMIN", "ADMIN_INSTITUTIE", "MODERATOR", "EVALUATOR", "AUTOR", "CO_AUTOR"];
 // Roluri de stakeholder extern (Portal Public, 4.5.1) — conturi SPORTIV/FEDERATIE/CLUB/CNFPA,
@@ -36,16 +36,19 @@ async function seedDefaultWidgets(userId: string, role: string) {
         { type: "LINK_BUTTON" as const, title: "Editor șabloane", config: { url: "/form-builder", icon: "document" }, x: 3, y: 9, w: 3, h: 2 },
         { type: "LINK_BUTTON" as const, title: "Business Intelligence", config: { url: "/bi", icon: "globe" }, x: 6, y: 9, w: 3, h: 2 },
         { type: "LINK_BUTTON" as const, title: "Utilizatori", config: { url: "/admin", icon: "institution" }, x: 9, y: 9, w: 3, h: 2 },
+        { type: "LMS_CONTINUE_LEARNING" as const, title: "Continuă parcurgerea", x: 0, y: 11, w: 6, h: 6 },
       ]
     : isStakeholder
     ? [
         { type: "ACCOUNT_SUMMARY" as const, x: 0, y: 0, w: 4, h: 5 },
         { type: "LINK_BUTTON" as const, title: "Contul meu", config: { url: "/contul-meu", icon: "document" }, x: 4, y: 0, w: 4, h: 2 },
         ...(role === "CNFPA" ? [{ type: "LINK_BUTTON" as const, title: "Cursuri CNFPA", config: { url: "/lms", icon: "globe" }, x: 8, y: 0, w: 4, h: 2 }] : []),
+        { type: "LMS_CONTINUE_LEARNING" as const, title: "Continuă parcurgerea", x: 0, y: 5, w: 6, h: 6 },
       ]
     : [
         { type: "ACCOUNT_SUMMARY" as const, x: 0, y: 0, w: 4, h: 5 },
         { type: "RECENT_REQUESTS" as const, title: "Cererile mele", config: { limit: 6 }, x: 4, y: 0, w: 8, h: 5 },
+        { type: "LMS_CONTINUE_LEARNING" as const, title: "Continuă parcurgerea", x: 0, y: 5, w: 6, h: 6 },
       ];
 
   await prisma.dashboardWidget.createMany({

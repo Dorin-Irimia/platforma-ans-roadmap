@@ -10,6 +10,7 @@ import { fetchUsers } from "../features/iam/api";
 import {
   fetchProject,
   updateProject,
+  deleteProject,
   attachExistingCourse,
   attachNewCourse,
   removeProjectCourse,
@@ -36,9 +37,12 @@ const ACCESS_LABEL: Record<string, { label: string; color: string; bg: string }>
 
 // Formular de atașare curs — fie unul existent (dintre cursurile proprii), fie unul nou,
 // creat și atașat direct din pagina proiectului, fără să mai treacă prin altă pagină.
+const NO_PROJECT_FILTER = "__none__";
+
 function AddCourseForm({ projectId, onAdded }: { projectId: string; onAdded: () => void }) {
   const [mode, setMode] = useState<"existing" | "new">("existing");
   const [myCourses, setMyCourses] = useState<LmsCourseSummary[]>([]);
+  const [sourceProjectFilter, setSourceProjectFilter] = useState("");
   const [selectedCourseId, setSelectedCourseId] = useState("");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -48,6 +52,18 @@ function AddCourseForm({ projectId, onAdded }: { projectId: string; onAdded: () 
   useEffect(() => {
     fetchCourses().then(setMyCourses).catch(() => setMyCourses([]));
   }, []);
+
+  // Un curs reutilizat în mai multe proiecte e ACELAȘI curs (lecții, comentarii etc. rămân
+  // comune) — filtrul de mai jos e doar o ajutare la găsirea rapidă a cursului potrivit,
+  // nu creează o copie separată per proiect.
+  const sourceProjects = Array.from(
+    new Map(myCourses.flatMap((c) => c.projectLinks || []).map((l) => [l.project.id, l.project])).values()
+  );
+  const filteredCourses = !sourceProjectFilter
+    ? myCourses
+    : sourceProjectFilter === NO_PROJECT_FILTER
+    ? myCourses.filter((c) => !c.projectLinks || c.projectLinks.length === 0)
+    : myCourses.filter((c) => c.projectLinks?.some((l) => l.project.id === sourceProjectFilter));
 
   async function handleSubmit() {
     setError(null);
@@ -79,14 +95,33 @@ function AddCourseForm({ projectId, onAdded }: { projectId: string; onAdded: () 
         </Button>
       </div>
       {mode === "existing" ? (
-        <div style={{ display: "flex", gap: 8 }}>
-          <select value={selectedCourseId} onChange={(e) => setSelectedCourseId(e.target.value)} style={{ flex: 1 }}>
-            <option value="">Alege un curs...</option>
-            {myCourses.map((c) => (
-              <option key={c.id} value={c.id}>{c.title}</option>
-            ))}
-          </select>
-          <Button onClick={handleSubmit} style={{ opacity: saving ? 0.6 : 1 }}>{saving ? "..." : "Atașează"}</Button>
+        <div>
+          {sourceProjects.length > 0 && (
+            <select
+              value={sourceProjectFilter}
+              onChange={(e) => { setSourceProjectFilter(e.target.value); setSelectedCourseId(""); }}
+              style={{ width: "100%", marginBottom: 8, fontSize: 12.5 }}
+            >
+              <option value="">Filtrează după proiectul-sursă: toate</option>
+              {sourceProjects.map((p) => (
+                <option key={p.id} value={p.id}>Doar din: {p.title}</option>
+              ))}
+              <option value={NO_PROJECT_FILTER}>Doar cursuri fără niciun proiect</option>
+            </select>
+          )}
+          <div style={{ display: "flex", gap: 8 }}>
+            <select value={selectedCourseId} onChange={(e) => setSelectedCourseId(e.target.value)} style={{ flex: 1 }}>
+              <option value="">Alege un curs...</option>
+              {filteredCourses.map((c) => {
+                const projectNames = (c.projectLinks || []).map((l) => l.project.title);
+                const suffix = projectNames.length ? ` (deja în: ${projectNames.join(", ")})` : " (fără proiect)";
+                return (
+                  <option key={c.id} value={c.id}>{c.title}{suffix}</option>
+                );
+              })}
+            </select>
+            <Button onClick={handleSubmit} style={{ opacity: saving ? 0.6 : 1 }}>{saving ? "..." : "Atașează"}</Button>
+          </div>
         </div>
       ) : (
         <div>
@@ -285,6 +320,18 @@ export default function LmsProjectDetailPage() {
     load();
   }
 
+  async function handleDeleteProject() {
+    if (!project) return;
+    if (!window.confirm(`Ștergi definitiv proiectul „${project.title}”? Cursurile atașate rămân, doar legătura cu proiectul se pierde. Acțiunea nu poate fi anulată.`)) return;
+    try {
+      await deleteProject(project.id);
+      toast.success("Proiect șters.");
+      navigate("/lms");
+    } catch (e: any) {
+      toast.error(e?.response?.data?.error || "Ștergere eșuată");
+    }
+  }
+
   async function moveCourse(index: number, direction: -1 | 1) {
     const ids = project!.courses.map((c) => c.courseId);
     const target = index + direction;
@@ -329,9 +376,14 @@ export default function LmsProjectDetailPage() {
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
             {renderEnrollAction()}
             {isOwnerOrAdmin && !showSettings && (
-              <Button variant="ghost" onClick={() => setShowSettings(true)} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, padding: "8px 14px" }}>
-                <Settings size={14} /> Editează
-              </Button>
+              <>
+                <Button variant="ghost" onClick={() => setShowSettings(true)} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, padding: "8px 14px" }}>
+                  <Settings size={14} /> Editează
+                </Button>
+                <Button variant="danger" onClick={handleDeleteProject} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, padding: "8px 14px" }}>
+                  <Trash2 size={14} /> Șterge proiect
+                </Button>
+              </>
             )}
           </div>
         </div>
@@ -353,7 +405,7 @@ export default function LmsProjectDetailPage() {
               <div
                 key={pc.id}
                 id={idx === 0 ? "lms-project-first-course-row" : undefined}
-                onClick={() => canOpen && navigate(`/lms/courses/${pc.courseId}/learn`)}
+                onClick={() => canOpen && navigate(`/lms/courses/${pc.courseId}/learn?projectId=${project!.id}`)}
                 style={{
                   display: "flex",
                   justifyContent: "space-between",

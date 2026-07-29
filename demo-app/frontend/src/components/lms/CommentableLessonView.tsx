@@ -4,7 +4,7 @@ import { MessageSquarePlus } from "lucide-react";
 import { T } from "../../theme";
 import { Card, Button } from "../ui";
 import { LessonBlock, LmsCommentDto, correctIndexesOf } from "../../features/lms/api";
-import { toEmbeddableVideo } from "./LessonBlocksView";
+import { toEmbeddableVideo, extractPlainText, TextAudioControls, BlockFeedback } from "./LessonBlocksView";
 
 interface PendingAnchor {
   blockId: string;
@@ -87,11 +87,19 @@ function TextBlockWithComments({
   comments,
   onSelect,
   onHighlightClick,
+  feedbackEnabled,
+  courseId,
+  lessonId,
+  projectId,
 }: {
   block: Extract<LessonBlock, { type: "TEXT" }>;
   comments: LmsCommentDto[];
   onSelect: (anchor: PendingAnchor) => void;
   onHighlightClick: (commentId: string) => void;
+  feedbackEnabled?: boolean;
+  courseId?: string;
+  lessonId?: string;
+  projectId?: string;
 }) {
   const ref = useRef<HTMLDivElement | null>(null);
   const sanitized = useMemo(() => DOMPurify.sanitize(block.text), [block.text]);
@@ -119,6 +127,8 @@ function TextBlockWithComments({
   return (
     <div id={`lms-block-${block.id}`}>
       <div ref={ref} className="rich-text-content" style={{ color: T.ink2 }} onMouseUp={handleMouseUp} />
+      <TextAudioControls text={extractPlainText(block.text)} label="Ascultă acest fragment" />
+      <BlockFeedback feedbackEnabled={feedbackEnabled} courseId={courseId} lessonId={lessonId} blockId={block.id} projectId={projectId} />
     </div>
   );
 }
@@ -138,10 +148,18 @@ export function CommentableLessonView({
   blocks,
   comments,
   onAddComment,
+  feedbackEnabled,
+  courseId,
+  lessonId,
+  projectId,
 }: {
   blocks: LessonBlock[];
   comments: LmsCommentDto[];
   onAddComment: (blockId: string, body: string, quote?: string) => Promise<void>;
+  feedbackEnabled?: boolean;
+  courseId?: string;
+  lessonId?: string;
+  projectId?: string;
 }) {
   const [anchor, setAnchor] = useState<PendingAnchor | null>(null);
   const [composerFor, setComposerFor] = useState<PendingAnchor | null>(null);
@@ -192,6 +210,10 @@ export function CommentableLessonView({
                 comments={comments}
                 onSelect={(a) => { setAnchor(a); setComposerFor(null); }}
                 onHighlightClick={handleHighlightClick}
+                feedbackEnabled={feedbackEnabled}
+                courseId={courseId}
+                lessonId={lessonId}
+                projectId={projectId}
               />
             );
           }
@@ -223,6 +245,7 @@ export function CommentableLessonView({
                 >
                   <MessageSquarePlus size={13} /> Comentează acest bloc {n > 0 && `(${n})`}
                 </button>
+                <BlockFeedback feedbackEnabled={feedbackEnabled} courseId={courseId} lessonId={lessonId} blockId={block.id} projectId={projectId} />
               </figure>
             );
           }
@@ -262,6 +285,7 @@ export function CommentableLessonView({
                   </div>
                 );
               })}
+              <BlockFeedback feedbackEnabled={feedbackEnabled} courseId={courseId} lessonId={lessonId} blockId={block.id} projectId={projectId} />
             </div>
           );
         })}

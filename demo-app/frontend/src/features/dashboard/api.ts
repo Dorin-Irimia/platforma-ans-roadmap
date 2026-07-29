@@ -9,7 +9,8 @@ export type DashboardWidgetType =
   | "CUSTOM_BUTTON"
   | "STATS"
   | "ACTIVITY_LOG"
-  | "AUTOMATION_SUMMARY";
+  | "AUTOMATION_SUMMARY"
+  | "LMS_CONTINUE_LEARNING";
 
 export interface DashboardWidgetDto {
   id: string;

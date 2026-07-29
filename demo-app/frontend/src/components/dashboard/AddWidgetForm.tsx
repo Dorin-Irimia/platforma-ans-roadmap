@@ -16,6 +16,7 @@ const TYPE_LABELS: Record<DashboardWidgetType, string> = {
   STATS: "Indicatori rapizi",
   ACTIVITY_LOG: "Jurnal de activitate",
   AUTOMATION_SUMMARY: "Automatizări active",
+  LMS_CONTINUE_LEARNING: "Continuă parcurgerea (cursuri)",
 };
 
 const DEFAULT_SIZE: Record<DashboardWidgetType, { w: number; h: number }> = {
@@ -28,6 +29,7 @@ const DEFAULT_SIZE: Record<DashboardWidgetType, { w: number; h: number }> = {
   STATS: { w: 12, h: 3 },
   ACTIVITY_LOG: { w: 6, h: 6 },
   AUTOMATION_SUMMARY: { w: 12, h: 4 },
+  LMS_CONTINUE_LEARNING: { w: 6, h: 6 },
 };
 
 interface Props {

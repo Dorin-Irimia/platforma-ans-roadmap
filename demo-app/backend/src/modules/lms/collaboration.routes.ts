@@ -1,10 +1,11 @@
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../../shared/prisma";
-import { requireAuth, requireRole, AuthedRequest } from "../iam/rbac.middleware";
+import { requireAuth, AuthedRequest } from "../iam/rbac.middleware";
 import { logAction } from "../iam/audit.service";
-import { hasCourseAccess } from "./rbac";
+import { hasCourseAccess, isRealCourseCollaborator } from "./rbac";
 import { computeLessonLocks } from "./lessons.routes";
+import { normalizeProjectId } from "./projects.rbac";
 
 export const lmsCollaborationRouter = Router();
 
@@ -35,21 +36,27 @@ lmsCollaborationRouter.delete("/courses/:id/collaborators/:userId", requireAuth,
 // Panou de revizuire — comentarii contextuale pe bloc + rezolvare (pct. 12). `quote` e
 // fragmentul exact selectat (text sau enunțul unei întrebări) — comentariu "ca la Word",
 // ancorat la o secvență precisă, nu doar la tot blocul.
-const commentSchema = z.object({ blockId: z.string(), body: z.string().min(1), quote: z.string().optional() });
+const commentSchema = z.object({ blockId: z.string(), body: z.string().min(1), quote: z.string().optional(), projectId: z.string().optional() });
 const authorSelect = { select: { id: true, name: true, email: true } } as const;
 
 lmsCollaborationRouter.get("/lessons/:id/comments", requireAuth, async (req: AuthedRequest, res) => {
   const lesson = await prisma.lmsLesson.findUnique({ where: { id: req.params.id } });
   if (!lesson) return res.status(404).json({ error: "Lecție inexistentă" });
-  const isEditor = await hasCourseAccess(lesson.courseId, req.user!);
+  // Colaborare REALĂ, nu hasCourseAccess — altfel orice SUPER_ADMIN/ADMIN_INSTITUTIE care
+  // parcurge cursul ca cursant (fără să fie autor/co-autor real) ar vedea automat toate
+  // comentariile private ale celorlalți, doar în virtutea rolului global de platformă.
+  const isEditor = await isRealCourseCollaborator(lesson.courseId, req.user!.id);
   // Comentariile sunt vizibile integral doar colaboratorilor/autorilor cursului — un
   // cursant obișnuit își vede DOAR propriile comentarii (+ răspunsurile primite la ele),
-  // niciodată comentariile altor cursanți.
+  // niciodată comentariile altor cursanți. Un editor vede TOATE comentariile de revizuire,
+  // indiferent de proiect (acelea sunt globale — vezi schema.prisma, LmsComment.projectId);
+  // un cursant vede doar comentariile din contextul proiectului prin care a accesat cursul.
   //
   // Doar comentariile de nivel superior — răspunsurile (parentId setat) vin înlănțuite
   // sub fiecare comentariu-părinte, ca un fir de discuție (ca la Word).
+  const projectId = isEditor ? undefined : await normalizeProjectId(lesson.courseId, req.query.projectId);
   const comments = await prisma.lmsComment.findMany({
-    where: { lessonId: req.params.id, parentId: null, ...(isEditor ? {} : { authorId: req.user!.id }) },
+    where: { lessonId: req.params.id, parentId: null, ...(isEditor ? {} : { authorId: req.user!.id, projectId }) },
     include: {
       author: authorSelect,
       replies: { include: { author: authorSelect }, orderBy: { createdAt: "asc" } },
@@ -63,6 +70,11 @@ lmsCollaborationRouter.post("/lessons/:id/comments", requireAuth, async (req: Au
   const lesson = await prisma.lmsLesson.findUnique({ where: { id: req.params.id } });
   if (!lesson) return res.status(404).json({ error: "Lecție inexistentă" });
   const isEditor = await hasCourseAccess(lesson.courseId, req.user!);
+  const parsed = commentSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+  // Comentariile de revizuire ale colaboratorilor/autorilor rămân globale (fără proiect) —
+  // doar un cursant real ancorează comentariul în proiectul prin care a accesat cursul.
+  const projectId = isEditor ? "" : await normalizeProjectId(lesson.courseId, parsed.data.projectId);
   if (!isEditor) {
     // Cursant: comentariile trebuie permise explicit de curs ("allowLearnerComments"),
     // iar lecția trebuie să fie deja deblocată pentru el ("în momentul în care au
@@ -73,13 +85,11 @@ lmsCollaborationRouter.post("/lessons/:id/comments", requireAuth, async (req: Au
     });
     if (!course?.allowLearnerComments) return res.status(403).json({ error: "Comentariile nu sunt permise cursanților la acest curs" });
     const courseLessons = await prisma.lmsLesson.findMany({ where: { courseId: lesson.courseId }, orderBy: { order: "asc" } });
-    const locks = await computeLessonLocks(courseLessons, req.user!.id, course.requireQuizToAdvance);
+    const locks = await computeLessonLocks(courseLessons, req.user!.id, course.requireQuizToAdvance, projectId);
     if (locks.get(lesson.id)) return res.status(403).json({ error: "Lecția este încă blocată" });
   }
-  const parsed = commentSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
   const comment = await prisma.lmsComment.create({
-    data: { lessonId: lesson.id, blockId: parsed.data.blockId, body: parsed.data.body, quote: parsed.data.quote, authorId: req.user!.id },
+    data: { lessonId: lesson.id, blockId: parsed.data.blockId, body: parsed.data.body, quote: parsed.data.quote, projectId, authorId: req.user!.id },
     include: { author: authorSelect, replies: { include: { author: authorSelect } } },
   });
   res.status(201).json(comment);
@@ -100,6 +110,7 @@ lmsCollaborationRouter.post("/comments/:id/replies", requireAuth, async (req: Au
       lessonId: parent.lessonId,
       blockId: parent.blockId,
       quote: parent.quote,
+      projectId: parent.projectId,
       parentId: parent.id,
       body: parsed.data.body,
       authorId: req.user!.id,
@@ -125,18 +136,32 @@ lmsCollaborationRouter.patch("/comments/:id/status", requireAuth, async (req: Au
   res.json(updated);
 });
 
-// Ștergere comentariu (+ răspunsurile lui, via cascade pe schema) — curățare comentarii
-// vechi, rezervată Super Admin (nu autorului/colaboratorilor obișnuiți ai cursului, ca
-// să nu se poată "ascunde" feedback prin ștergere din partea celui evaluat).
-lmsCollaborationRouter.delete("/comments/:id", requireAuth, requireRole("SUPER_ADMIN"), async (req: AuthedRequest, res) => {
-  const comment = await prisma.lmsComment.findUnique({ where: { id: req.params.id } });
+// Ștergere comentariu — Super Admin poate șterge orice comentariu (curățare generală).
+// Un utilizator obișnuit își poate șterge DOAR propriile comentarii, și doar dacă firul
+// încă nu a fost "preluat" de un administrator/colaborator (adică e Deschis și nimeni nu
+// a răspuns încă — ștergerea nu distruge nimic) SAU dacă firul a fost deja finalizat
+// (Rezolvat/Respins — discuția s-a încheiat, deci nu mai contează). Un comentariu Deschis
+// care a primit deja un răspuns rămâne needitabil de autorul lui — l-ar șterge împreună cu
+// răspunsul primit, via cascade pe schema.
+lmsCollaborationRouter.delete("/comments/:id", requireAuth, async (req: AuthedRequest, res) => {
+  const comment = await prisma.lmsComment.findUnique({ where: { id: req.params.id }, include: { replies: true } });
   if (!comment) return res.status(404).json({ error: "Comentariu inexistent" });
+
+  const isSuperAdmin = req.user!.role === "SUPER_ADMIN";
+  if (!isSuperAdmin) {
+    if (comment.authorId !== req.user!.id) return res.status(403).json({ error: "Poți șterge doar propriile comentarii" });
+    const claimedByAdmin = comment.status === "OPEN" && comment.replies.length > 0;
+    if (claimedByAdmin) {
+      return res.status(403).json({ error: "Nu poți șterge un comentariu deschis la care s-a răspuns deja — așteaptă să fie rezolvat" });
+    }
+  }
+
   await prisma.lmsComment.delete({ where: { id: comment.id } });
   await logAction({
     userId: req.user!.id,
     action: "LMS_COMMENT_DELETED",
     resource: `lmscomment:${comment.id}`,
-    metadata: { lessonId: comment.lessonId, authorId: comment.authorId },
+    metadata: { lessonId: comment.lessonId, authorId: comment.authorId, selfDelete: !isSuperAdmin },
   });
   res.json({ deleted: true });
 });

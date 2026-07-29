@@ -15,7 +15,15 @@ const execFileAsync = promisify(execFile);
 // produce un fișier .wav propriu-zis, prin `espeak-ng` (motor TTS offline, instalat în
 // imaginea Docker Alpine — vezi backend/Dockerfile). Nu se persistă un rând în DB:
 // cerința e generarea unui fișier descărcabil, nu un istoric al ei.
-const ttsSchema = z.object({ text: z.string().min(1).max(2000) });
+// Limita a fost 2000, prea mică pentru "descarcă audio lecția întreagă" (o lecție reală
+// cu mai multe blocuri TEXT poate trece ușor de 5-6000 de caractere) — mărită la 10000,
+// suficient pentru orice lecție rezonabilă, fără să riște un argument de linie de comandă
+// nepractic de lung pentru espeak-ng.
+// `rate` — același multiplicator de viteză ca la redarea live (Web Speech API, 1 = normal),
+// ales din același meniu de accesibilitate — aplicat aici prin `-s` (cuvinte/minut) al
+// espeak-ng, pornind de la viteza lui implicită (~175 wpm).
+const ttsSchema = z.object({ text: z.string().min(1).max(10000), rate: z.number().min(0.5).max(2.5).optional() });
+const ESPEAK_DEFAULT_WPM = 175;
 
 lmsTtsRouter.post("/tts", requireAuth, async (req: AuthedRequest, res) => {
   const parsed = ttsSchema.safeParse(req.body);
@@ -23,9 +31,10 @@ lmsTtsRouter.post("/tts", requireAuth, async (req: AuthedRequest, res) => {
 
   const storagePath = newStoragePath("lms-tts", ".wav");
   const outputPath = absolutePath(storagePath);
+  const wpm = Math.round(ESPEAK_DEFAULT_WPM * (parsed.data.rate ?? 1));
 
   try {
-    await execFileAsync("espeak-ng", ["-v", "ro", "-w", outputPath, parsed.data.text]);
+    await execFileAsync("espeak-ng", ["-v", "ro", "-s", String(wpm), "-w", outputPath, parsed.data.text]);
     const buffer = readFile(storagePath);
     res.setHeader("Content-Type", "audio/wav");
     res.setHeader("Content-Disposition", 'attachment; filename="lectie-audio.wav"');

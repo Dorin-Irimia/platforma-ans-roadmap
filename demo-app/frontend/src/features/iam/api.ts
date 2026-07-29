@@ -44,11 +44,74 @@ export interface Me {
   name?: string | null;
   role: string;
   isActive: boolean;
+  language?: string;
+  hasAvatar?: boolean;
 }
 
 export async function fetchMe(): Promise<Me> {
   const { data } = await api.get("/api/iam/me");
   return data;
+}
+
+// --- Setări cont (autoservire) ---
+
+export async function updateMe(input: { name?: string; language?: string }): Promise<Me> {
+  const { data } = await api.patch("/api/iam/me", input);
+  return data;
+}
+
+export async function uploadAvatar(file: File): Promise<Me> {
+  const form = new FormData();
+  form.append("file", file);
+  const { data } = await api.post("/api/iam/me/avatar", form);
+  return data;
+}
+
+export async function deleteAvatar(): Promise<Me> {
+  const { data } = await api.delete("/api/iam/me/avatar");
+  return data;
+}
+
+// Ruta cere autentificare — nu poate fi folosită direct ca `<img src>` (fără antetul
+// Authorization); încărcăm ca blob și expunem un object URL, la fel ca la certificate/media.
+export async function fetchAvatarBlobUrl(userId: string): Promise<string | null> {
+  try {
+    const { data } = await api.get(`/api/iam/users/${userId}/avatar`, { responseType: "blob" });
+    return URL.createObjectURL(data);
+  } catch {
+    return null;
+  }
+}
+
+export async function changePassword(currentPassword: string, newPassword: string): Promise<void> {
+  await api.post("/api/iam/me/change-password", { currentPassword, newPassword });
+}
+
+export interface UserVariableDto {
+  id: string;
+  key: string;
+  label: string;
+  value: string;
+  createdAt: string;
+}
+
+export async function fetchMyVariables(): Promise<UserVariableDto[]> {
+  const { data } = await api.get("/api/iam/me/variables");
+  return data;
+}
+
+export async function createVariable(input: { key: string; label: string; value: string }): Promise<UserVariableDto> {
+  const { data } = await api.post("/api/iam/me/variables", input);
+  return data;
+}
+
+export async function updateVariable(id: string, input: { label?: string; value?: string }): Promise<UserVariableDto> {
+  const { data } = await api.patch(`/api/iam/me/variables/${id}`, input);
+  return data;
+}
+
+export async function deleteVariable(id: string): Promise<void> {
+  await api.delete(`/api/iam/me/variables/${id}`);
 }
 
 export async function fetchUsers() {

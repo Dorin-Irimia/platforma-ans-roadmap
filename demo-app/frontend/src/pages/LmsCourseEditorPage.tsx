@@ -24,12 +24,15 @@ import {
   removeCollaborator,
   fetchCourseEnrollments,
   fetchQuizReport,
+  fetchFeedbackSummary,
   LmsCourseSummary,
   LmsLessonDto,
   LessonBlock,
   LmsEnrollmentRosterDto,
   LmsQuizLessonReport,
+  LmsFeedbackSummary,
 } from "../features/lms/api";
+import { StarRatingDisplay, FeedbackDistributionBars } from "../components/lms/StarRating";
 import { generateId } from "../lib/id";
 import { LessonBlocksView } from "../components/lms/LessonBlocksView";
 import { BlockEditor } from "../components/lms/BlockEditor";
@@ -276,13 +279,13 @@ function EnrollmentsTab({ courseId }: { courseId: string }) {
 // Raport agregat de răspunsuri la teste, per curs — pentru fiecare lecție cu test,
 // rezumat (cursanți testați/promovare/scor mediu) + un breakdown expandabil per întrebare
 // (distribuția opțiunilor alese, opțiunile corecte evidențiate).
-function QuizReportTab({ courseId }: { courseId: string }) {
+function QuizReportTab({ courseId, projectId }: { courseId: string; projectId?: string }) {
   const [report, setReport] = useState<LmsQuizLessonReport[]>([]);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    fetchQuizReport(courseId).then(setReport).catch(() => setReport([]));
-  }, [courseId]);
+    fetchQuizReport(courseId, projectId).then(setReport).catch(() => setReport([]));
+  }, [courseId, projectId]);
 
   function toggle(lessonId: string) {
     const next = new Set(expanded);
@@ -346,9 +349,91 @@ function QuizReportTab({ courseId }: { courseId: string }) {
   );
 }
 
+// Raport de evaluări prin stele (+ comentarii) — evaluarea cursului în ansamblu, apoi,
+// per lecție cu cel puțin un element evaluat, breakdown expandabil per element (aceeași
+// structură vizuală ca la QuizReportTab, cu bare de distribuție 1★-5★ în loc de opțiuni).
+function FeedbackReportTab({ courseId, projectId }: { courseId: string; projectId?: string }) {
+  const [summary, setSummary] = useState<LmsFeedbackSummary | null>(null);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    fetchFeedbackSummary(courseId, projectId).then(setSummary).catch(() => setSummary(null));
+  }, [courseId, projectId]);
+
+  function toggle(lessonId: string) {
+    const next = new Set(expanded);
+    if (next.has(lessonId)) next.delete(lessonId);
+    else next.add(lessonId);
+    setExpanded(next);
+  }
+
+  if (!summary) return null;
+  const hasAnything = summary.course.count > 0 || summary.lessons.length > 0;
+  if (!hasAnything) {
+    return <p style={{ color: T.ink3 }}>Niciun cursant sau colaborator nu a lăsat încă o evaluare.</p>;
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <SectionHeader title="Evaluare curs (stele)" />
+      <Card style={{ padding: 16 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 10 }}>
+          <div style={{ fontWeight: 700, fontSize: 14.5 }}>Cursul în ansamblu</div>
+          <StarRatingDisplay avg={summary.course.avg} count={summary.course.count} />
+        </div>
+        {summary.course.count > 0 && (
+          <div style={{ maxWidth: 320, marginBottom: summary.course.comments.length ? 14 : 0 }}>
+            <FeedbackDistributionBars distribution={summary.course.distribution} count={summary.course.count} />
+          </div>
+        )}
+        {summary.course.comments.map((c) => (
+          <div key={c.id} style={{ borderTop: `1px solid ${T.line}`, paddingTop: 8, marginTop: 8, fontSize: 12.5 }}>
+            <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 3 }}>
+              <b>{c.authorName}</b>
+              <StarRatingDisplay avg={c.rating} count={1} size={11} />
+            </div>
+            <div style={{ color: T.ink2 }}>{c.comment}</div>
+          </div>
+        ))}
+      </Card>
+
+      {summary.lessons.length > 0 && <SectionHeader title="Evaluare per element din lecții" />}
+      {summary.lessons.map((l) => (
+        <Card key={l.lessonId} style={{ padding: 16 }}>
+          <div onClick={() => toggle(l.lessonId)} style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+            {expanded.has(l.lessonId) ? <ChevronDown size={15} color={T.ink3} /> : <ChevronRight size={15} color={T.ink3} />}
+            <div style={{ fontWeight: 700, fontSize: 14.5 }}>{l.lessonTitle}</div>
+            <div style={{ fontSize: 12, color: T.ink3 }}>({l.blocks.length} {l.blocks.length === 1 ? "element evaluat" : "elemente evaluate"})</div>
+          </div>
+          {expanded.has(l.lessonId) && (
+            <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 14 }}>
+              {l.blocks.map((b) => (
+                <div key={b.blockId} style={{ borderTop: `1px solid ${T.line}`, paddingTop: 10 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, marginBottom: 6, flexWrap: "wrap" }}>
+                    <div style={{ fontSize: 13, fontWeight: 600 }}>{b.label}</div>
+                    <StarRatingDisplay avg={b.avg} count={b.count} size={13} />
+                  </div>
+                  <div style={{ maxWidth: 280, marginBottom: b.comments.length ? 8 : 0 }}>
+                    <FeedbackDistributionBars distribution={b.distribution} count={b.count} />
+                  </div>
+                  {b.comments.map((c) => (
+                    <div key={c.id} style={{ fontSize: 12, color: T.ink2, marginTop: 4 }}>
+                      <b>{c.authorName}:</b> {c.comment}
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+      ))}
+    </div>
+  );
+}
+
 // Comutatoare de politică ale cursului — vezi schema.prisma (model LmsCourse) pentru
 // ce controlează fiecare, în detaliu.
-const SETTINGS_META: { key: "allowLearnerComments" | "requireQuizToAdvance" | "issueCertificate"; label: string; help: string; invert?: boolean }[] = [
+const SETTINGS_META: { key: "allowLearnerComments" | "requireQuizToAdvance" | "issueCertificate" | "showQuizCorrectAnswers" | "feedbackEnabled"; label: string; help: string; invert?: boolean }[] = [
   {
     key: "allowLearnerComments",
     label: "Permite cursanților să adauge comentarii",
@@ -365,12 +450,22 @@ const SETTINGS_META: { key: "allowLearnerComments" | "requireQuizToAdvance" | "i
     label: "Generează certificat la finalizarea cursului",
     help: "Certificatul se emite doar dacă această opțiune e activă ȘI cursantul a promovat toate testele din curs.",
   },
+  {
+    key: "showQuizCorrectAnswers",
+    label: "Arată răspunsurile corecte la teste",
+    help: "Dacă e bifat, răspunsul corect e evidențiat cu verde imediat după trimitere, chiar dacă cursantul nu l-a bifat. Dacă e nebifat, răspunsul corect rămâne ascuns la tentativele picate — se dezvăluie abia după ce cursantul atinge scorul minim cerut.",
+  },
+  {
+    key: "feedbackEnabled",
+    label: "Permite evaluarea prin stele (+ comentarii)",
+    help: "Cursanții și colaboratorii pot evalua cu 1-5 stele fiecare element din lecții (text, imagine, video, test) și/sau cursul în ansamblu, opțional însoțit de un comentariu. Datele apar agregat în tab-ul „Rapoarte”.",
+  },
 ];
 
 function CourseSettingsTab({ course, onChanged }: { course: LmsCourseSummary; onChanged: () => void }) {
   const [saving, setSaving] = useState<string | null>(null);
 
-  async function handleToggle(key: "allowLearnerComments" | "requireQuizToAdvance" | "issueCertificate", nextChecked: boolean, invert?: boolean) {
+  async function handleToggle(key: "allowLearnerComments" | "requireQuizToAdvance" | "issueCertificate" | "showQuizCorrectAnswers" | "feedbackEnabled", nextChecked: boolean, invert?: boolean) {
     setSaving(key);
     try {
       await updateCourse(course.id, { [key]: invert ? !nextChecked : nextChecked });
@@ -421,6 +516,10 @@ export default function LmsCourseEditorPage() {
   const [previewWidth, setPreviewWidth] = useState<"desktop" | "tablet" | "mobile">("desktop");
   const [showGenerate, setShowGenerate] = useState(false);
   const [showInvite, setShowInvite] = useState(false);
+  // Rapoartele (teste + evaluări) sunt specifice unui singur proiect (cohortă) — un curs
+  // reutilizat în mai multe proiecte are statistici complet separate per proiect, deci
+  // trebuie ales explicit care proiect se vede în tab-ul "Rapoarte" (implicit primul legat).
+  const [reportProjectId, setReportProjectId] = useState<string>("");
   const sensors = useSensors(useSensor(PointerSensor), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
 
   function loadCourse() {
@@ -436,6 +535,13 @@ export default function LmsCourseEditorPage() {
   }
   useEffect(loadCourse, [id]);
   useEffect(loadLessons, [id]);
+
+  useEffect(() => {
+    if (course && course.projectLinks && course.projectLinks.length > 0) {
+      setReportProjectId((prev) => (prev ? prev : course.projectLinks![0].project.id));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [course?.id]);
 
   const activeLesson = lessons.find((l) => l.id === activeLessonId) || null;
 
@@ -626,13 +732,31 @@ export default function LmsCourseEditorPage() {
         <CollaboratorsPanel course={course} onChanged={loadCourse} />
       )}
       {tab === "colaborare" && activeLesson && (
-        <ReviewPanel courseId={course.id} lessonId={activeLesson.id} blocks={activeLesson.content} />
+        <ReviewPanel courseId={course.id} lessonId={activeLesson.id} blocks={activeLesson.content} feedbackEnabled={course.feedbackEnabled} />
       )}
       {tab === "colaborare" && !activeLesson && <p style={{ color: T.ink3 }}>Alege o lecție din tab-ul „Lecții" pentru a vedea comentariile.</p>}
 
       {tab === "asistent" && <AssistantPanel courseId={course.id} />}
       {tab === "cursanti" && <EnrollmentsTab courseId={course.id} />}
-      {tab === "rapoarte" && <QuizReportTab courseId={course.id} />}
+      {tab === "rapoarte" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
+          {course.projectLinks && course.projectLinks.length > 0 && (
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <FieldLabel>Proiect</FieldLabel>
+              <select value={reportProjectId} onChange={(e) => setReportProjectId(e.target.value)} style={{ fontSize: 13, padding: "6px 10px" }}>
+                {course.projectLinks.map((pl) => (
+                  <option key={pl.project.id} value={pl.project.id}>{pl.project.title}</option>
+                ))}
+              </select>
+              <span style={{ fontSize: 11.5, color: T.ink3 }}>
+                Statisticile și evaluările sunt separate per proiect — un curs reutilizat în alt proiect pornește de la zero.
+              </span>
+            </div>
+          )}
+          <QuizReportTab courseId={course.id} projectId={reportProjectId || undefined} />
+          <FeedbackReportTab courseId={course.id} projectId={reportProjectId || undefined} />
+        </div>
+      )}
       {tab === "setari" && <CourseSettingsTab course={course} onChanged={loadCourse} />}
 
       {showGenerate && <GenerateStructureModal courseId={course.id} onClose={() => setShowGenerate(false)} onGenerated={() => { setShowGenerate(false); loadLessons(); }} />}

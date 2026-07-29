@@ -5,7 +5,9 @@ import { useIsMobile } from "../lib/useMediaQuery";
 
 const ZOOM_KEY = "ans_demo_a11y_zoom";
 const CONTRAST_KEY = "ans_demo_a11y_contrast";
+const VOICE_RATE_KEY = "ans_demo_a11y_voice_rate";
 const ZOOM_STEPS = [1, 1.1, 1.25, 1.4];
+const VOICE_RATE_STEPS = [0.75, 1, 1.25, 1.5, 2];
 
 function applyZoom(zoom: number) {
   document.body.style.zoom = String(zoom);
@@ -15,6 +17,19 @@ function applyZoom(zoom: number) {
 function applyContrast(high: boolean) {
   document.documentElement.setAttribute("data-contrast", high ? "high" : "normal");
   localStorage.setItem(CONTRAST_KEY, String(high));
+}
+
+// Preferință globală de viteză a vocii — citită de TextAudioControls (LessonBlocksView.tsx)
+// la fiecare redare/descărcare, ca să se aplice atât la "Ascultă" (Web Speech API live),
+// cât și la fișierul .wav generat pe server (espeak-ng), fără să fie nevoie de un control
+// separat per fragment de text — o singură setare, valabilă peste tot în platformă.
+export function getVoiceRate(): number {
+  const stored = Number(localStorage.getItem(VOICE_RATE_KEY));
+  return VOICE_RATE_STEPS.includes(stored) ? stored : 1;
+}
+
+function applyVoiceRate(rate: number) {
+  localStorage.setItem(VOICE_RATE_KEY, String(rate));
 }
 
 // Se aplică o singură dată la încărcarea aplicației, din valorile salvate — altfel
@@ -35,6 +50,7 @@ export function AccessibilityMenu() {
   const [open, setOpen] = useState(false);
   const [zoom, setZoom] = useState(() => Number(localStorage.getItem(ZOOM_KEY)) || 1);
   const [contrast, setContrast] = useState(() => localStorage.getItem(CONTRAST_KEY) === "true");
+  const [voiceRate, setVoiceRate] = useState(getVoiceRate);
   const panelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -59,11 +75,21 @@ export function AccessibilityMenu() {
     applyContrast(next);
   }
 
+  function changeVoiceRate(delta: 1 | -1) {
+    const idx = VOICE_RATE_STEPS.indexOf(voiceRate);
+    const nextIdx = Math.min(VOICE_RATE_STEPS.length - 1, Math.max(0, (idx === -1 ? 1 : idx) + delta));
+    const next = VOICE_RATE_STEPS[nextIdx];
+    setVoiceRate(next);
+    applyVoiceRate(next);
+  }
+
   function reset() {
     setZoom(1);
     setContrast(false);
+    setVoiceRate(1);
     applyZoom(1);
     applyContrast(false);
+    applyVoiceRate(1);
   }
 
   return (
@@ -105,9 +131,28 @@ export function AccessibilityMenu() {
             </button>
           </div>
 
-          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: T.ink2, marginBottom: 14, cursor: "pointer" }}>
+          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: T.ink2, marginBottom: 16, cursor: "pointer" }}>
             <input type="checkbox" checked={contrast} onChange={toggleContrast} /> Contrast ridicat
           </label>
+
+          <div style={{ fontSize: 13, color: T.ink2, marginBottom: 8 }}>Viteza vocii (Text-to-Speech)</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+            <button
+              onClick={() => changeVoiceRate(-1)}
+              disabled={voiceRate === VOICE_RATE_STEPS[0]}
+              style={{ width: 32, height: 32, borderRadius: 8, border: `1px solid ${T.line}`, background: T.line2, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", opacity: voiceRate === VOICE_RATE_STEPS[0] ? 0.5 : 1 }}
+            >
+              <Minus size={14} />
+            </button>
+            <span style={{ fontSize: 13, fontWeight: 700, minWidth: 40, textAlign: "center" }}>{voiceRate}x</span>
+            <button
+              onClick={() => changeVoiceRate(1)}
+              disabled={voiceRate === VOICE_RATE_STEPS[VOICE_RATE_STEPS.length - 1]}
+              style={{ width: 32, height: 32, borderRadius: 8, border: `1px solid ${T.line}`, background: T.line2, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", opacity: voiceRate === VOICE_RATE_STEPS[VOICE_RATE_STEPS.length - 1] ? 0.5 : 1 }}
+            >
+              <Plus size={14} />
+            </button>
+          </div>
 
           <button
             onClick={reset}

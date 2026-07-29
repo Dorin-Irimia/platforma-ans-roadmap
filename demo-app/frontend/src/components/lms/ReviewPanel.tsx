@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Card, Button, SectionHeader, Pill } from "../ui";
 import { T } from "../../theme";
 import { useAuth } from "../../features/iam/AuthContext";
+import { useToast } from "../ToastProvider";
 import {
   fetchComments,
   addComment,
@@ -30,7 +31,7 @@ function CommentItem({
   comment,
   blocks,
   isFirst,
-  canDelete,
+  canDeleteComment,
   onStatusChange,
   onReply,
   onDelete,
@@ -38,7 +39,7 @@ function CommentItem({
   comment: LmsCommentDto;
   blocks: LessonBlock[];
   isFirst: boolean;
-  canDelete: boolean;
+  canDeleteComment: (c: LmsCommentDto) => boolean;
   onStatusChange: (id: string, status: LmsCommentStatus) => Promise<void>;
   onReply: (id: string, body: string) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
@@ -103,7 +104,7 @@ function CommentItem({
         <Button variant="ghost" style={{ fontSize: 11.5, padding: "4px 10px" }} onClick={() => setReplying(!replying)}>
           Răspunde
         </Button>
-        {canDelete && (
+        {canDeleteComment(comment) && (
           <Button variant="danger" style={{ fontSize: 11.5, padding: "4px 10px" }} onClick={() => onDelete(comment.id)}>
             Șterge
           </Button>
@@ -120,7 +121,7 @@ function CommentItem({
                 </div>
                 <div style={{ fontSize: 13, color: T.ink }}>{r.body}</div>
               </div>
-              {canDelete && (
+              {canDeleteComment(r) && (
                 <button
                   onClick={() => onDelete(r.id)}
                   style={{ border: "none", background: "none", color: T.danger, fontSize: 11, cursor: "pointer", padding: "2px 4px", flexShrink: 0 }}
@@ -153,9 +154,19 @@ function CommentItem({
 
 // Panou de revizuire — comentarii contextuale pe bloc + rezolvare, plus rubrică de
 // evaluare cu feedback structurat (pct. 12).
-export function ReviewPanel({ courseId, lessonId, blocks }: { courseId: string; lessonId: string; blocks: LessonBlock[] }) {
+export function ReviewPanel({ courseId, lessonId, blocks, feedbackEnabled }: { courseId: string; lessonId: string; blocks: LessonBlock[]; feedbackEnabled?: boolean }) {
   const { user } = useAuth();
-  const canDelete = user?.role === "SUPER_ADMIN";
+  const toast = useToast();
+  // Super Admin poate șterge orice comentariu. Un utilizator obișnuit își poate șterge doar
+  // propriile comentarii, și doar dacă firul nu a fost deja "preluat" de un administrator/
+  // colaborator (Deschis + are răspuns primit) — oglindește exact regula din backend
+  // (collaboration.routes.ts), ca butonul „Șterge” să nu apară acolo unde oricum ar fi respins.
+  function canDeleteComment(c: LmsCommentDto): boolean {
+    if (user?.role === "SUPER_ADMIN") return true;
+    if (c.authorId !== user?.id) return false;
+    const claimedByAdmin = c.status === "OPEN" && !!c.replies?.length;
+    return !claimedByAdmin;
+  }
   const [comments, setComments] = useState<LmsCommentDto[]>([]);
   const [criteria, setCriteria] = useState<LmsRubricCriterion[]>([]);
   const [scores, setScores] = useState<Record<string, number>>({});
@@ -188,8 +199,12 @@ export function ReviewPanel({ courseId, lessonId, blocks }: { courseId: string; 
 
   async function handleDelete(id: string) {
     if (!window.confirm("Ștergi definitiv acest comentariu? Acțiunea nu poate fi anulată.")) return;
-    await deleteComment(id);
-    loadComments();
+    try {
+      await deleteComment(id);
+      loadComments();
+    } catch (e: any) {
+      toast.error(e?.response?.data?.error || "Comentariul nu a putut fi șters");
+    }
   }
 
   async function handleAddCriterion() {
@@ -211,7 +226,14 @@ export function ReviewPanel({ courseId, lessonId, blocks }: { courseId: string; 
         <p style={{ fontSize: 12.5, color: T.ink3, marginTop: -8, marginBottom: 14 }}>
           Selectează o secvență de text ca să comentezi asupra ei, sau apasă „Comentează” pe o întrebare de test ori pe un bloc media.
         </p>
-        <CommentableLessonView blocks={blocks} comments={comments} onAddComment={handleAddComment} />
+        <CommentableLessonView
+          blocks={blocks}
+          comments={comments}
+          onAddComment={handleAddComment}
+          feedbackEnabled={feedbackEnabled}
+          courseId={courseId}
+          lessonId={lessonId}
+        />
       </Card>
 
       <Card>
@@ -223,7 +245,7 @@ export function ReviewPanel({ courseId, lessonId, blocks }: { courseId: string; 
               comment={c}
               blocks={blocks}
               isFirst={cIdx === 0}
-              canDelete={canDelete}
+              canDeleteComment={canDeleteComment}
               onStatusChange={handleStatusChange}
               onReply={handleReply}
               onDelete={handleDelete}

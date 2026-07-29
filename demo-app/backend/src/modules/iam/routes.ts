@@ -1,6 +1,9 @@
 import { Router } from "express";
 import { z } from "zod";
 import crypto from "crypto";
+import fs from "fs";
+import path from "path";
+import multer from "multer";
 import rateLimit from "express-rate-limit";
 import { prisma } from "../../shared/prisma";
 import { supabaseAdmin, supabaseAnon, supabaseAsUser } from "../../shared/supabase";
@@ -9,6 +12,10 @@ import { logAction, queryAuditLog } from "./audit.service";
 import { encryptSecret, decryptSecret } from "./secrets.service";
 import { getAuthPolicy, validatePassword } from "./policy";
 import { createUserSession, listUserSessions, revokeSession, extractSessionId } from "./sessions.service";
+import { newStoragePath, absolutePath, writeFile, readFile } from "../../shared/storage";
+
+const LANGUAGE_VALUES = ["ro", "en", "de", "fr", "hu"] as const;
+const avatarUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024, files: 1 } });
 
 // Limitare de rată pe autentificare — cerință de monitorizare securitate (Scenariul 5,
 // pct. 9: „simulare/vizualizare evenimente de securitate ... rate limiting"), separată de
@@ -359,13 +366,123 @@ iamRouter.post("/2fa-email/request", loginRateLimiter, async (req, res) => {
 });
 
 // Sesiune curentă — folosit de frontend la reîncărcarea paginii pentru a re-hidrata contul din token.
+const meSelect = { id: true, email: true, name: true, role: true, isActive: true, language: true, avatarStoragePath: true } as const;
+
+function serializeMe(user: { avatarStoragePath: string | null } & Record<string, unknown>) {
+  const { avatarStoragePath, ...rest } = user;
+  return { ...rest, hasAvatar: !!avatarStoragePath };
+}
+
 iamRouter.get("/me", requireAuth, async (req: AuthedRequest, res) => {
-  const user = await prisma.user.findUnique({
-    where: { id: req.user!.id },
-    select: { id: true, email: true, name: true, role: true, isActive: true },
-  });
+  const user = await prisma.user.findUnique({ where: { id: req.user!.id }, select: meSelect });
   if (!user || !user.isActive) return res.status(401).json({ error: "Cont indisponibil" });
-  res.json(user);
+  res.json(serializeMe(user));
+});
+
+// Setări cont — autoservire, fiecare utilizator își editează DOAR propriul cont (spre
+// deosebire de rutele /users/:id de mai jos, rezervate administrării altor conturi).
+const updateMeSchema = z.object({
+  name: z.string().min(1).optional(),
+  language: z.enum(LANGUAGE_VALUES).optional(),
+});
+
+iamRouter.patch("/me", requireAuth, async (req: AuthedRequest, res) => {
+  const parsed = updateMeSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+  const user = await prisma.user.update({ where: { id: req.user!.id }, data: parsed.data, select: meSelect });
+  res.json(serializeMe(user));
+});
+
+iamRouter.post("/me/avatar", requireAuth, avatarUpload.single("file"), async (req: AuthedRequest, res) => {
+  if (!req.file) return res.status(400).json({ error: "Niciun fișier trimis" });
+  if (!req.file.mimetype.startsWith("image/")) return res.status(400).json({ error: "Doar imagini sunt acceptate" });
+
+  const existing = await prisma.user.findUnique({ where: { id: req.user!.id }, select: { avatarStoragePath: true } });
+  const ext = path.extname(req.file.originalname) || ".jpg";
+  const storagePath = newStoragePath("avatars", ext);
+  writeFile(storagePath, req.file.buffer);
+
+  const user = await prisma.user.update({ where: { id: req.user!.id }, data: { avatarStoragePath: storagePath }, select: meSelect });
+  // Curățare fișier vechi — best-effort, nu blochează răspunsul dacă eșuează.
+  if (existing?.avatarStoragePath) fs.unlink(absolutePath(existing.avatarStoragePath), () => {});
+  res.json(serializeMe(user));
+});
+
+iamRouter.delete("/me/avatar", requireAuth, async (req: AuthedRequest, res) => {
+  const existing = await prisma.user.findUnique({ where: { id: req.user!.id }, select: { avatarStoragePath: true } });
+  const user = await prisma.user.update({ where: { id: req.user!.id }, data: { avatarStoragePath: null }, select: meSelect });
+  if (existing?.avatarStoragePath) fs.unlink(absolutePath(existing.avatarStoragePath), () => {});
+  res.json(serializeMe(user));
+});
+
+// Poza de profil a UNUI utilizator (nu doar a celui autentificat) — vizibilă oricui e
+// autentificat, la fel ca numele/emailul lui în alte liste (colaboratori, comentarii etc).
+iamRouter.get("/users/:id/avatar", requireAuth, async (req: AuthedRequest, res) => {
+  const user = await prisma.user.findUnique({ where: { id: req.params.id }, select: { avatarStoragePath: true } });
+  if (!user?.avatarStoragePath) return res.status(404).json({ error: "Fără poză de profil" });
+  res.setHeader("Content-Type", "image/*");
+  res.send(readFile(user.avatarStoragePath));
+});
+
+const changePasswordSchema = z.object({ currentPassword: z.string().min(1), newPassword: z.string().min(1) });
+
+iamRouter.post("/me/change-password", requireAuth, async (req: AuthedRequest, res) => {
+  const parsed = changePasswordSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+  // Verificăm parola curentă exact ca la login — singurul mod de a confirma că cel care
+  // face cererea chiar cunoaște parola actuală, nu doar are un token de sesiune valid.
+  const { error: verifyError } = await supabaseAnon.auth.signInWithPassword({ email: req.user!.email, password: parsed.data.currentPassword });
+  if (verifyError) return res.status(401).json({ error: "Parola curentă este incorectă" });
+
+  const policy = await getAuthPolicy();
+  const check = validatePassword(parsed.data.newPassword, policy);
+  if (!check.valid) return res.status(400).json({ error: check.reason });
+
+  const { error } = await supabaseAdmin.auth.admin.updateUserById(req.user!.id, { password: parsed.data.newPassword });
+  if (error) return res.status(400).json({ error: error.message });
+
+  await logAction({ userId: req.user!.id, action: "PASSWORD_CHANGED_SELF", resource: `user:${req.user!.id}` });
+  res.json({ changed: true });
+});
+
+// --- Variabile personale (Setări cont) ---
+const variableSchema = z.object({
+  key: z.string().min(1).regex(/^[a-z0-9_]+$/, "Doar litere mici, cifre și underscore"),
+  label: z.string().min(1),
+  value: z.string(),
+});
+
+iamRouter.get("/me/variables", requireAuth, async (req: AuthedRequest, res) => {
+  const variables = await prisma.userVariable.findMany({ where: { userId: req.user!.id }, orderBy: { createdAt: "asc" } });
+  res.json(variables);
+});
+
+iamRouter.post("/me/variables", requireAuth, async (req: AuthedRequest, res) => {
+  const parsed = variableSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+  try {
+    const variable = await prisma.userVariable.create({ data: { ...parsed.data, userId: req.user!.id } });
+    res.status(201).json(variable);
+  } catch {
+    res.status(409).json({ error: "Ai deja o variabilă cu acest identificator" });
+  }
+});
+
+iamRouter.patch("/me/variables/:id", requireAuth, async (req: AuthedRequest, res) => {
+  const existing = await prisma.userVariable.findUnique({ where: { id: req.params.id } });
+  if (!existing || existing.userId !== req.user!.id) return res.status(404).json({ error: "Variabilă inexistentă" });
+  const parsed = variableSchema.partial().safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+  const variable = await prisma.userVariable.update({ where: { id: existing.id }, data: parsed.data });
+  res.json(variable);
+});
+
+iamRouter.delete("/me/variables/:id", requireAuth, async (req: AuthedRequest, res) => {
+  const existing = await prisma.userVariable.findUnique({ where: { id: req.params.id } });
+  if (!existing || existing.userId !== req.user!.id) return res.status(404).json({ error: "Variabilă inexistentă" });
+  await prisma.userVariable.delete({ where: { id: existing.id } });
+  res.json({ deleted: true });
 });
 
 // 4) Administrare utilizatori — doar Super Admin / Admin Instituție (RBAC)

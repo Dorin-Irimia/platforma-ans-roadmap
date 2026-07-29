@@ -15,7 +15,7 @@ const projectInclude = {
 async function serializeProject(project: any, userId: string) {
   const enrollment = await getProjectEnrollment(project.id, userId);
   const orderedCourseIds = project.courses.map((pc: any) => pc.courseId);
-  const locks = await computeProjectCourseLocks(orderedCourseIds, userId, project.progression);
+  const locks = await computeProjectCourseLocks(orderedCourseIds, userId, project.progression, project.id);
   return {
     ...project,
     myEnrollmentStatus: enrollment?.status ?? null,

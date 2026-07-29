@@ -11,7 +11,25 @@ type QuizBlock = Extract<LessonBlock, { type: "QUIZ" }>;
 // component doar trimite răspunsurile alese și afișează rezultatul primit. O întrebare
 // poate avea mai multe opțiuni corecte (checkbox) — punctajul cere setul EXACT, fără
 // punctaj parțial pentru un subset corect.
-export function QuizPlayer({ lessonId, quiz, onSubmitted }: { lessonId: string; quiz: QuizBlock; onSubmitted: (passed: boolean) => void }) {
+//
+// Selecțiile cursantului sunt colorate mereu (corect=verde, greșit=roșu) după trimitere.
+// Opțiunea corectă NESELECTATĂ e evidențiată verde doar dacă autorul cursului a activat
+// `showCorrectAnswers` (setare per-curs) SAU cursantul a atins deja scorul minim cerut —
+// altfel rămâne neutră, ca să nu poată "ghici din încercări" răspunsul corect fără să-l
+// știe efectiv.
+export function QuizPlayer({
+  lessonId,
+  quiz,
+  onSubmitted,
+  showCorrectAnswers,
+  projectId,
+}: {
+  lessonId: string;
+  quiz: QuizBlock;
+  onSubmitted: (passed: boolean) => void;
+  showCorrectAnswers: boolean;
+  projectId?: string;
+}) {
   const [answers, setAnswers] = useState<Record<string, number[]>>({});
   const [result, setResult] = useState<{ score: number; passed: boolean; correctCount: number; totalCount: number } | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -25,12 +43,20 @@ export function QuizPlayer({ lessonId, quiz, onSubmitted }: { lessonId: string; 
   async function handleSubmit() {
     setSubmitting(true);
     try {
-      const res = await submitQuizAttempt(lessonId, answers);
+      const res = await submitQuizAttempt(lessonId, answers, projectId);
       setResult(res);
       onSubmitted(res.passed);
     } finally {
       setSubmitting(false);
     }
+  }
+
+  // "poți încerca din nou" (mesajul de mai jos, la un test picat) trebuie să fie chiar
+  // adevărat — resetează răspunsurile alese și rezultatul, ca să poți completa din nou
+  // testul, nu doar să rămână un mesaj fără nicio acțiune posibilă în spate.
+  function handleRetry() {
+    setAnswers({});
+    setResult(null);
   }
 
   const allAnswered = quiz.questions.every((q) => (answers[q.id] || []).length > 0);
@@ -47,9 +73,12 @@ export function QuizPlayer({ lessonId, quiz, onSubmitted }: { lessonId: string; 
             const isSelected = (answers[q.id] || []).includes(oi);
             const showFeedback = !!result;
             const isCorrect = correctIndexesOf(q).includes(oi);
+            // Corectul neselectat se dezvăluie doar dacă autorul a activat opțiunea sau
+            // cursantul a promovat deja — vezi comentariul de deasupra componentei.
+            const revealUnselectedCorrect = showCorrectAnswers || !!result?.passed;
             let color = T.ink2;
             if (showFeedback && isSelected) color = isCorrect ? T.success : T.danger;
-            else if (showFeedback && isCorrect) color = T.success;
+            else if (showFeedback && isCorrect && revealUnselectedCorrect) color = T.success;
             return (
               <label
                 key={oi}
@@ -63,7 +92,7 @@ export function QuizPlayer({ lessonId, quiz, onSubmitted }: { lessonId: string; 
                   onChange={() => toggleOption(q.id, oi)}
                 />
                 {o}
-                {showFeedback && (isSelected || isCorrect) && (isCorrect ? <CheckCircle2 size={14} /> : <XCircle size={14} />)}
+                {showFeedback && (isSelected || (isCorrect && revealUnselectedCorrect)) && (isCorrect ? <CheckCircle2 size={14} /> : <XCircle size={14} />)}
               </label>
             );
           })}
@@ -75,11 +104,16 @@ export function QuizPlayer({ lessonId, quiz, onSubmitted }: { lessonId: string; 
           {submitting ? "Se trimite..." : "Trimite răspunsurile"}
         </Button>
       ) : (
-        <div id="lms-quiz-result-banner" style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div id="lms-quiz-result-banner" style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <span style={{ fontSize: 14, fontWeight: 700, color: result.passed ? T.success : T.danger }}>
             Scor: {result.score}% ({result.correctCount}/{result.totalCount} corecte)
           </span>
-          <span style={{ fontSize: 13, color: T.ink3 }}>{result.passed ? "Ai deblocat lecția următoare." : "Nu ai atins scorul minim — poți încerca din nou."}</span>
+          <span style={{ fontSize: 13, color: T.ink3 }}>{result.passed ? "Ai deblocat lecția următoare." : "Nu ai atins scorul minim."}</span>
+          {!result.passed && (
+            <Button id="lms-quiz-retry-btn" variant="ghost" onClick={handleRetry} style={{ fontSize: 12.5, padding: "6px 12px" }}>
+              Încearcă din nou
+            </Button>
+          )}
         </div>
       )}
     </div>

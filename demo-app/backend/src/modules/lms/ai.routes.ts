@@ -95,11 +95,22 @@ const rewriteSchema = z.object({
   context: z.string().optional(),
 });
 
+// Fiecare instrucțiune trebuie să rămână distinctă de celelalte în PRACTICĂ, nu doar în
+// intenție — REWRITE/ADAPT, fără o constrângere explicită de lungime, tindeau să umfle
+// textul de 2× sau mai mult (verificat empiric), ceea ce pe o selecție scurtă arăta ca o
+// extindere, nu ca o reformulare. EXPAND, la rândul lui, inventa fapte concrete (nume de
+// coechipieri, turnee) care nu existau în text — inacceptabil într-un curs educațional.
 const INSTRUCTION_PROMPTS: Record<string, string> = {
-  REWRITE: "Rescrie textul următor, păstrând sensul, într-un stil mai clar.",
-  ADAPT: "Adaptează textul următor pentru un public de cursanți la un curs online, pe înțelesul tuturor.",
-  EXPAND: "Extinde textul următor cu mai multe detalii și exemple, păstrând coerența.",
-  SUMMARIZE: "Rezumă textul următor, păstrând ideile esențiale, cât mai concis.",
+  REWRITE:
+    "Rescrie textul următor, păstrând EXACT același sens și aceleași informații, doar reformulat mai clar. " +
+    "Păstrează aproximativ aceeași lungime — NU adăuga informații, exemple, propoziții sau detalii noi care nu există deja în text.",
+  ADAPT:
+    "Adaptează textul următor pentru un public de cursanți la un curs online, folosind cuvinte și propoziții mai simple, pe înțelesul tuturor. " +
+    "Păstrează aproximativ aceeași lungime — simplifică formularea, nu adăuga informații noi.",
+  EXPAND:
+    "Extinde textul următor cu mai multe detalii, explicații și exemple, păstrând coerența. " +
+    "Poți adăuga explicații generale, context sau clarificări, dar NU inventa fapte concrete (nume, date, cifre, evenimente) care nu apar deja în text sau nu sunt sigur adevărate.",
+  SUMMARIZE: "Rezumă textul următor, păstrând doar ideile esențiale, cât mai concis posibil.",
 };
 
 lmsAiRouter.post("/ai/rewrite", requireAuth, async (req: AuthedRequest, res) => {

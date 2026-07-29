@@ -23,6 +23,7 @@ import { CustomButtonWidget } from "./widgets/CustomButtonWidget";
 import { StatsWidget } from "./widgets/StatsWidget";
 import { ActivityLogWidget } from "./widgets/ActivityLogWidget";
 import { AutomationSummaryWidget } from "./widgets/AutomationSummaryWidget";
+import { ContinueLearningWidget } from "./widgets/ContinueLearningWidget";
 
 const ResponsiveGrid = WidthProvider(GridLayout);
 
@@ -46,6 +47,8 @@ function renderWidgetBody(widget: DashboardWidgetDto) {
       return <ActivityLogWidget config={widget.config} />;
     case "AUTOMATION_SUMMARY":
       return <AutomationSummaryWidget />;
+    case "LMS_CONTINUE_LEARNING":
+      return <ContinueLearningWidget />;
     default:
       return null;
   }

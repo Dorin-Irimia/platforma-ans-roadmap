@@ -12,6 +12,11 @@ const courseInclude = {
   lessons: { orderBy: { order: "asc" as const }, select: { id: true, title: true, order: true } },
   collaborators: { include: { user: { select: { id: true, name: true, email: true } } } },
   rubric: true,
+  // Proiectul(ele) de care e deja atașat cursul — folosit la atașarea unui "curs existent"
+  // într-un alt proiect, ca autorul să vadă din ce proiect provine deja fiecare curs
+  // (un curs reutilizat în mai multe proiecte e același curs, nu o copie — comentariile,
+  // lecțiile etc. rămân comune).
+  projectLinks: { include: { project: { select: { id: true, title: true } } } },
 };
 
 // „Cursurile mele" (pct. 10) — pagina de autorat: Autor/Co-autor/CNFPA vede cursurile
@@ -95,6 +100,8 @@ const updateCourseSchema = z.object({
   allowLearnerComments: z.boolean().optional(),
   requireQuizToAdvance: z.boolean().optional(),
   issueCertificate: z.boolean().optional(),
+  showQuizCorrectAnswers: z.boolean().optional(),
+  feedbackEnabled: z.boolean().optional(),
 });
 
 lmsCoursesRouter.patch("/courses/:id", requireAuth, async (req: AuthedRequest, res) => {

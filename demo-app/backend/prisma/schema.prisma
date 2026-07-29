@@ -46,6 +46,11 @@ model User {
   // Permite regula automată "conturi în așteptare expirate" (AuthPolicySettings.pendingApprovalExpiryDays)
   // să distingă un cont încă neaprobat de unul dezactivat manual după ce fusese deja activ.
   pendingApprovalSince DateTime?
+  // Setări de cont (pct. nou) — pozA de profil (fișier pe disc, ca restul platformei —
+  // vezi shared/storage.ts) și limba preferată a interfeței (doar interfața principală:
+  // meniu/antet/butoane comune, nu conținutul propriu-zis — vezi frontend/src/i18n).
+  avatarStoragePath String?
+  language          String    @default("ro")
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
@@ -70,6 +75,8 @@ model User {
   emailOtpFactor      EmailOtpFactor?
   lmsProjectsOwned      LmsProject[]
   lmsProjectEnrollments LmsProjectEnrollment[]
+  lmsFeedback           LmsFeedback[]
+  variables             UserVariable[]
   // Legătură inversă opțională către entitatea de domeniu asociată unui cont de
   // stakeholder (SPORTIV/CLUB/FEDERATIE) — vezi Athlete/SportsClub/SportsFederation.userId.
   athleteProfile      Athlete?
@@ -77,6 +84,23 @@ model User {
   federationProfile   SportsFederation?
   mediaAssets         MediaAsset[]
   sessions            UserSession[]
+}
+
+// Variabile personale reutilizabile (Setări cont) — text scurt legat de contul unui
+// utilizator (ex. semnătură, funcție, telefon), care poate fi inserat manual în documente/
+// formulare/mesaje generate din platformă. `key` e identificatorul folosit la inserare
+// (ex. {{semnatura}}), `label` e numele afișat în UI de gestionare.
+model UserVariable {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  key       String
+  label     String
+  value     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, key])
 }
 
 // Al doilea canal 2FA (pct. 4.4.2), paralel cu TOTP-ul delegat la Supabase Auth MFA —
@@ -201,6 +225,7 @@ enum DashboardWidgetType {
   STATS
   ACTIVITY_LOG
   AUTOMATION_SUMMARY
+  LMS_CONTINUE_LEARNING
 }
 
 model DashboardWidget {
@@ -1099,9 +1124,18 @@ model LmsCourse {
   //   dezactivată pentru acest curs — cursantul poate avansa fără să fi promovat testele.
   // - issueCertificate: dacă e false, nu se mai emite niciun certificat la finalizarea
   //   cursului (100% progres), indiferent de rezultatele la teste.
-  allowLearnerComments Boolean @default(false)
-  requireQuizToAdvance Boolean @default(true)
-  issueCertificate     Boolean @default(true)
+  // - showQuizCorrectAnswers: la un test picat, dacă e true, răspunsul corect e evidențiat
+  //   verde imediat, alături de selecțiile cursantului (corecte=verde, greșite=roșu). Dacă
+  //   e false, răspunsul corect rămâne ascuns la tentative picate — se dezvăluie abia după
+  //   ce cursantul atinge scorul minim cerut (QuizPlayer.tsx), ca să nu poată "ghici din
+  //   încercări" răspunsul corect fără să-l știe efectiv.
+  allowLearnerComments   Boolean @default(false)
+  requireQuizToAdvance   Boolean @default(true)
+  issueCertificate       Boolean @default(true)
+  showQuizCorrectAnswers Boolean @default(false)
+  // Activează evaluarea prin stele (+ comentariu opțional) — cursanții și colaboratorii pot
+  // evalua fiecare element din lecție (bloc) și/sau cursul în ansamblu. Vezi LmsFeedback.
+  feedbackEnabled        Boolean @default(false)
 
   lessons       LmsLesson[]
   collaborators LmsCourseCollaborator[]
@@ -1110,6 +1144,40 @@ model LmsCourse {
   rubric        LmsRubric?
   intents       LmsIntent[]
   projectLinks  LmsProjectCourse[]
+  feedback      LmsFeedback[]
+}
+
+enum LmsFeedbackScope {
+  COURSE // evaluează cursul în ansamblu — lessonId/blockId rămân "" (nu se aplică)
+  BLOCK  // evaluează un element anume dintr-o lecție (text/imagine/video/test)
+}
+
+// Evaluare prin stele (1-5) + comentariu opțional — distinctă de LmsComment (comentarii
+// ancorate "ca la Word", folosite de colaboratori la revizuirea unui draft). Aici e feedback
+// de satisfacție, dat de cursanți SAU colaboratori, activabil per curs (feedbackEnabled).
+// lessonId/blockId rămân string gol (nu null) pentru scope=COURSE, ca unicitatea de mai jos
+// să prevină efectiv evaluări duplicate ale aceluiași utilizator pe aceeași țintă — Postgres
+// nu tratează NULL ca "egal" într-un @@unique, deci un sentinel "" e mai sigur decât null.
+model LmsFeedback {
+  id        String           @id @default(uuid())
+  courseId  String
+  course    LmsCourse        @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  scope     LmsFeedbackScope
+  lessonId  String           @default("")
+  blockId   String           @default("")
+  // "" = curs de sine stătător / fără context de proiect — la fel ca restul câmpurilor
+  // projectId din acest fișier, un cursant reevaluează de la zero un curs reutilizat
+  // într-un proiect nou (evaluările nu se amestecă între cohorte diferite).
+  projectId String           @default("")
+  authorId  String
+  author    User             @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  rating    Int
+  comment   String?
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  @@unique([courseId, scope, lessonId, blockId, projectId, authorId])
+  @@index([courseId])
 }
 
 // Organizator/tablou de bord (pct. 10, caiet 4.5.8) — un Proiect grupează mai multe
@@ -1224,11 +1292,17 @@ enum LmsCommentStatus {
 
 // `blockId` e o cheie în `LmsLesson.content` (JSON), fără FK — dacă blocul e șters/
 // reordonat, comentariul poate rămâne orfan (acceptabil pt. demo, documentat explicit).
+// `projectId` — completat DOAR pentru comentariile cursanților (adăugate din player, prin
+// contextul unui proiect anume) — "" pentru comentariile de revizuire ale colaboratorilor/
+// autorilor (adăugate din editorul cursului, fără context de proiect), care rămân globale,
+// comune tuturor proiectelor ce reutilizează cursul (nu se resetează la reutilizare —
+// discuția despre calitatea conținutului nu ține de cohortă). Vezi normalizeProjectId.
 model LmsComment {
   id        String           @id @default(uuid())
   lessonId  String
   lesson    LmsLesson        @relation(fields: [lessonId], references: [id], onDelete: Cascade)
   blockId   String
+  projectId String           @default("")
   authorId  String
   author    User             @relation(fields: [authorId], references: [id], onDelete: Cascade)
   body      String
@@ -1259,6 +1333,7 @@ model LmsRubricScore {
   id          String   @id @default(uuid())
   lessonId    String
   lesson      LmsLesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  projectId   String   @default("")
   evaluatorId String
   scores      Json // [{label, score}]
   createdAt   DateTime @default(now())
@@ -1268,32 +1343,43 @@ model LmsRubricScore {
 
 // Progresul cursantului — un singur rând per (curs, utilizator), citit/actualizat la
 // fiecare navigare de lecție, pentru reluarea cross-device (pct. 14).
+// `projectId` — "" înseamnă curs de sine stătător / acces direct, fără proiect (sentinel,
+// nu null — Postgres nu tratează NULL ca "egal" într-un @@unique, vezi și LmsFeedback).
+// Un curs atașat la MAI MULTE proiecte (reutilizare, vezi LmsProjectCourse) capătă astfel
+// un progres complet SEPARAT per proiect: un cursant reia cursul de la lecția 1 de fiecare
+// dată când îl accesează dintr-un proiect nou, chiar dacă l-a mai parcurs în alt proiect —
+// progresul/certificatul/blocajele secvențiale nu se amestecă între cohorte diferite.
 model LmsEnrollment {
   id              String    @id @default(uuid())
   courseId        String
   course          LmsCourse @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  projectId       String    @default("")
   userId          String
   user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   currentLessonId String?
   progressPercent Int       @default(0)
   updatedAt       DateTime  @updatedAt
 
-  @@unique([courseId, userId])
+  @@unique([courseId, projectId, userId])
 }
 
 // Certificat de absolvire (cerință CNFPA 4.5.8) — emis automat, o singură dată, când
 // LmsEnrollment.progressPercent atinge 100% (vezi enrollment.routes.ts).
+// Un certificat separat per (curs, proiect) — la fel ca la LmsEnrollment, un cursant care
+// termină cursul într-un proiect nou primește propriul certificat pentru ACEA rulare,
+// chiar dacă a mai primit deja unul pentru același curs, dintr-un alt proiect.
 model LmsCertificate {
   id                String    @id @default(uuid())
   courseId          String
   course            LmsCourse @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  projectId         String    @default("")
   userId            String
   user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   certificateNumber String    @unique
   issuedAt          DateTime  @default(now())
   storagePath       String
 
-  @@unique([courseId, userId])
+  @@unique([courseId, projectId, userId])
   @@index([userId])
 }
 
@@ -1307,12 +1393,13 @@ model LmsQuizAttempt {
   userId    String
   lessonId  String
   lesson    LmsLesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  projectId String    @default("")
   answers   Json
   score     Int
   passed    Boolean
   createdAt DateTime  @default(now())
 
-  @@index([lessonId, userId])
+  @@index([lessonId, projectId, userId])
 }
 
 // Intenții personalizabile pentru asistentul de lecție (pct. 4) — ecran real de
